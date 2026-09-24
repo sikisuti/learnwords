@@ -1,0 +1,223 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f4f5f9;
+  --surface: #ffffff;
+  --surface-2: #eceef5;
+  --text: #1c1f2a;
+  --muted: #62687a;
+  --border: #d9dce6;
+  --primary: #3558d6;
+  --primary-text: #ffffff;
+  --again: #d98a16;
+  --done: #1f9d62;
+  --danger: #c93b3b;
+  --shadow: 0 6px 24px rgb(20 24 40 / 0.12), 0 1px 3px rgb(20 24 40 / 0.08);
+  --radius: 16px;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12141b;
+    --surface: #1d2029;
+    --surface-2: #272b36;
+    --text: #e9ebf2;
+    --muted: #9aa0b2;
+    --border: #353a48;
+    --primary: #6f8cff;
+    --primary-text: #0d1020;
+    --shadow: 0 6px 24px rgb(0 0 0 / 0.45);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 0 0 0.25rem;
+}
+
+a {
+  color: var(--primary);
+}
+
+/* Single-column page used by every screen. */
+.page {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+
+  h1 {
+    flex: 1;
+    margin: 0;
+    font-size: 1.25rem;
+  }
+}
+
+.panel {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  &.primary {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--primary-text);
+  }
+
+  &.block {
+    width: 100%;
+  }
+
+  &.big {
+    min-height: 64px;
+    font-size: 1.15rem;
+  }
+
+  &.icon {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 10px;
+    border-color: transparent;
+    background: transparent;
+    font-size: 1.3rem;
+  }
+
+  &.link {
+    border-color: transparent;
+    background: transparent;
+    color: var(--primary);
+    min-height: 44px;
+  }
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  > span {
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  small {
+    color: var(--muted);
+  }
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  /* 16px keeps iOS Safari from zooming in on focus */
+  font: inherit;
+  font-size: 16px;
+
+  &:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+  }
+}
+
+textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.error {
+  color: var(--danger);
+  margin: 0;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: var(--shadow);
+  z-index: 10;
+  animation: toast-in 180ms ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}
