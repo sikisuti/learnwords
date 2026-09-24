@@ -1,0 +1,15 @@
+{
+  "name": "learnwords",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev -w server",
+    "dev:client": "npm start -w client",
+    "build": "npm run build -w client && npm run build -w server",
+    "test": "npm test -w server && npm test -w client -- --watch=false",
+    "import": "npm run import -w server --"
+  }
+}
