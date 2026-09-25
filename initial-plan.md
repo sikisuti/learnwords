@@ -2,14 +2,19 @@
 
 This is an application supporting members improving their vocabulary in a foreign language.
 
+## Technology stack
+
+- SQLite for database
+- Node.js + Fastify for service layer containing the business logic and provides also the static built frontend code.
+- Angular for the frontend
+
 ## Technical considerations for the application
 
 - Should accessible via browser.
 - Should run on Raspberry Pi 3 model B v1.2 running Raspberry Pi OS (Debian), meaning the available resources will be limited.
 - Has to store data in the most lightweight manner.
 - The stored data has to be able to backup, so the database layer should be separated from the application logic and UI.
-- The business logic is relatively simple, mostly containing database queries, so separated service layer not necessary. This would also help keeping the implementation simple and lightweight.
-- Preferable technologies are SQLite for database and Angular for the frontend with containing also the business logic if its possible. This is just a proposal, suggest better if there is one.
+- The business logic is relatively simple, mostly containing database queries. This would also help keeping the implementation simple and lightweight.
 
 ## Functional requirements
 
@@ -22,8 +27,8 @@ This is an application supporting members improving their vocabulary in a foreig
 
 ### Persistance layer
 
-- Stores information about the users for the authentication and specific user settings.
-- Stores words, phrases, sentences with their details:
+- User table: Stores information about the users for the authentication and specific user settings.
+- Word table: Stores words, phrases, sentences with their details:
   - native: text
   - foreign: text
   - definition: text (explain the word)
@@ -33,7 +38,7 @@ This is an application supporting members improving their vocabulary in a foreig
   - lexical_category: text (verb, noun, etc.)
 - Each word has a level attached in which language level the word is used (A1 - elementary, A2 - pre-intermediate, B1 - intermediate, B2 - upper intermediate, C1 - advanced, C2 - proficient). There should be an extra 7th level for the manually inserted words that doesn't have level information at the insert time.
 - The progress of learning a word goes through stages. There are 6 stages (1-6). 1 - newly added word for a user to learn, 6 - word is known by the user, and in between.
-- Stores how each user progressing with each words learning. Which user is on what stage for a word.
+- user_word table: Stores how each user progressing with each words learning. Which user is on what stage for a word.
   - user_id: foreign key to user
   - word_id: foreign key to word
   - stage: integer (1-6 stage for a word for a user)

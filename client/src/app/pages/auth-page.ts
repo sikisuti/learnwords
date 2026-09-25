@@ -31,9 +31,6 @@ import { AuthService } from '../core/auth.service';
             formControlName="password"
             [attr.autocomplete]="mode() === 'login' ? 'current-password' : 'new-password'"
           />
-          @if (mode() === 'register') {
-            <small>At least 8 characters.</small>
-          }
         </label>
         @if (mode() === 'register') {
           <label class="field">
@@ -92,24 +89,20 @@ export class AuthPage {
   protected readonly error = signal('');
   protected readonly form = inject(FormBuilder).nonNullable.group({
     username: ['', Validators.required],
-    password: ['', Validators.required],
+    password: [''],
     repeat: [''],
   });
 
   protected async submit() {
     const { username, password, repeat } = this.form.getRawValue();
     const name = username.trim();
-    if (!name || !password) {
-      this.error.set('Enter your username and password.');
+    if (!name) {
+      this.error.set('Enter your username.');
       return;
     }
     if (this.mode() === 'register') {
       if (!/^[\p{L}\p{N}._-]{3,32}$/u.test(name)) {
         this.error.set('The username must be 3–32 letters, numbers, dots, dashes or underscores.');
-        return;
-      }
-      if (password.length < 8) {
-        this.error.set('The password must be at least 8 characters long.');
         return;
       }
       if (password !== repeat) {

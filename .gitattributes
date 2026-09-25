@@ -1,3 +1,4 @@
 # Shell scripts and systemd units run on Linux; keep LF line endings on every checkout.
 *.sh eol=lf
 *.service eol=lf
+tools/*.mjs eol=lf

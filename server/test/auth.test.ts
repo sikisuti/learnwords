@@ -21,11 +21,10 @@ test('duplicate usernames are rejected case-insensitively', async () => {
   assert.equal(res.statusCode, 409);
 });
 
-test('register validates username and password', async () => {
+test('register validates username but accepts any password', async () => {
   const { app } = await testApp();
   for (const payload of [
     { username: 'al', password: 'long-enough' },
-    { username: 'alice', password: 'short' },
     { username: 'has space', password: 'long-enough' },
   ]) {
     const res = await app.inject({ method: 'POST', url: '/api/auth/register', payload });
@@ -37,6 +36,10 @@ test('register validates username and password', async () => {
     payload: { username: 'Tamás', password: 'long-enough' },
   });
   assert.equal(accented.statusCode, 201);
+  for (const [username, password] of [['shorty', 'x'], ['empty', '']]) {
+    const res = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username, password } });
+    assert.equal(res.statusCode, 201, username);
+  }
 });
 
 test('login accepts the right password only', async () => {

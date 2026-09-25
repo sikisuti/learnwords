@@ -44,15 +44,18 @@ export class AuthService {
   }
 }
 
+// inject() only works before the first await, so both guards grab the Router up front.
 export const authGuard: CanActivateFn = async () => {
+  const router = inject(Router);
   const user = await inject(AuthService).load();
-  return user ? true : inject(Router).parseUrl('/login');
+  return user ? true : router.parseUrl('/login');
 };
 
 /** Keeps logged-in users away from the login and register pages. */
 export const guestGuard: CanActivateFn = async () => {
+  const router = inject(Router);
   const user = await inject(AuthService).load();
-  return user ? inject(Router).parseUrl('/') : true;
+  return user ? router.parseUrl('/') : true;
 };
 
 /** Sends the user to the login page when their session has expired. */

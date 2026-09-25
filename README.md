@@ -6,6 +6,7 @@ It is small enough to run on a Raspberry Pi 3.
 - **server/**: Node.js 24 + Fastify. It uses SQLite through the built-in `node:sqlite` module, so there are no native modules to compile. It serves the API under `/api` and the built frontend.
 - **client/**: Angular 21 (standalone components, signals, zoneless). Its build output goes to `server/public`.
 - **deploy/**: systemd unit and deploy script for the Pi.
+- **tools/**: standalone one-off scripts that are not part of the app, such as the [migration from the old LearnWords](#migrating-from-the-old-learnwords).
 
 See [initial-plan.md](initial-plan.md) for the functional specification.
 
@@ -100,4 +101,48 @@ sudo systemctl stop learnwords
 sudo -u learnwords cp /path/to/learnwords-<date>.db /var/lib/learnwords/learnwords.db
 sudo rm -f /var/lib/learnwords/learnwords.db-wal /var/lib/learnwords/learnwords.db-shm
 sudo systemctl start learnwords
+```
+
+## Migrating from the old LearnWords
+
+[tools/merge-legacy-dump.mjs](tools/merge-legacy-dump.mjs) merges a `mysqldump` of the old MariaDB-based LearnWords (its `Auth` and `LearnWords` databases) into a new SQLite database. It is a standalone script: it needs only Node.js 24+, no `npm install`, and no build.
+
+| Old table | New table | How it is merged |
+|---|---|---|
+| `Auth.Users` | `user` | Matched by username, ignoring case. New users get the password `password`. Existing users, and their passwords, are left alone. |
+| `LearnWords.levels` | `level` | Matched by code or name. "Manually inserted" maps to `?` (Unlevelled). Any other level without a match is added. |
+| `LearnWords.words` | `word` | Matched by foreign text, ignoring case and spacing. Existing words are left alone. Old words with the same foreign text become one word, keeping the first one's native text. `audioFile` is dropped. |
+| `LearnWords.userWords` | `user_word` | stage = min(state, 6). If a user and word pair already exists, the higher stage wins, then the later `last_learned`. |
+
+Everything runs in a single transaction. Running the script again with the same dump changes nothing.
+
+| Option | Meaning |
+|---|---|
+| `<dump.sql>` | Path to the old dump (required) |
+| `--db <path>` | The new database (required). The app must have started against it once so its tables exist. |
+| `--password <pw>` | Password for newly created users (default `password`) |
+| `--dry-run` | Does the whole merge, prints the summary, then rolls it back |
+
+On the Pi, the deploy script does not upload `tools/`, so copy the script and the dump over first. Run this from the development machine:
+
+```bash
+scp tools/merge-legacy-dump.mjs dump.sql pi@raspberrypi.local:/tmp/
+```
+
+Then, on the Pi:
+
+```bash
+sudo systemctl stop learnwords
+cd /opt/learnwords && sudo -u learnwords DATA_DIR=/var/lib/learnwords node dist/scripts/backup-db.js
+sudo -u learnwords node /tmp/merge-legacy-dump.mjs /tmp/dump.sql --db /var/lib/learnwords/learnwords.db --dry-run
+sudo -u learnwords node /tmp/merge-legacy-dump.mjs /tmp/dump.sql --db /var/lib/learnwords/learnwords.db
+sudo systemctl start learnwords
+```
+
+Stop the service and take a backup first. Check the dry-run summary before the real run. Running the script as `learnwords` keeps the database files owned by the service user.
+
+Locally, against the development database:
+
+```bash
+node tools/merge-legacy-dump.mjs path/to/dump.sql --db server/data/learnwords.db --dry-run
 ```

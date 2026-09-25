@@ -15,7 +15,7 @@ const credentialsSchema = {
     additionalProperties: false,
     properties: {
       username: { type: 'string', minLength: 3, maxLength: 32, pattern: '^[\\p{L}\\p{N}._-]+$' },
-      password: { type: 'string', minLength: 8, maxLength: 200 },
+      password: { type: 'string' },
     },
   },
 } as const;
