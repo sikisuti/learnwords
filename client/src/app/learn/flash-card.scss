@@ -1,3 +1,6 @@
+// Faint paper fibre, drawn as SVG noise.
+$grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.3 0 0 0 0 0.2 0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
 :host {
   position: absolute;
   inset: 0;
@@ -22,6 +25,7 @@
 
   &:focus-visible .face {
     outline: 3px solid var(--primary);
+    outline-offset: 3px;
   }
 }
 
@@ -50,28 +54,42 @@
   align-items: center;
   justify-content: center;
   padding: 20px;
-  border-radius: 20px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  border-radius: 14px;
+  color: var(--ink);
+  /* Warm paper with a faint fibre grain and slightly darker edges. */
+  background:
+    $grain,
+    radial-gradient(120% 140% at 50% 40%, var(--paper) 55%, var(--paper-edge));
+  box-shadow:
+    0 18px 40px rgb(0 0 0 / 0.45),
+    0 2px 4px rgb(0 0 0 / 0.3),
+    inset 0 0 0 1px rgb(255 255 255 / 0.6);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   overflow: hidden;
 
   &.back {
     transform: rotateY(180deg);
-    background: linear-gradient(var(--surface), var(--surface-2));
+    /* The back is a ruled index card: a pastel header rule and faint blue lines. */
+    background:
+      linear-gradient(transparent 22%, rgb(240 128 170 / 0.55) 22%, rgb(240 128 170 / 0.55) calc(22% + 2px), transparent calc(22% + 2px)),
+      repeating-linear-gradient(transparent 0 27px, rgb(110 160 220 / 0.28) 27px 28px),
+      $grain,
+      radial-gradient(120% 140% at 50% 40%, var(--paper) 55%, var(--paper-edge));
   }
 }
 
 .text {
+  position: relative;
   text-align: center;
-  font-size: 2rem;
+  font-family: var(--font-paper);
+  font-size: 2.1rem;
   font-weight: 700;
   line-height: 1.2;
   overflow-wrap: anywhere;
 
   &.long {
-    font-size: 1.35rem;
+    font-size: 1.4rem;
   }
 }
 
@@ -89,13 +107,13 @@
 
   &.again {
     left: 18px;
-    color: var(--again);
+    color: var(--ink-again);
     transform: rotate(-12deg);
   }
 
   &.done {
     right: 18px;
-    color: var(--done);
+    color: var(--ink-done);
     transform: rotate(12deg);
   }
 }

@@ -12,7 +12,7 @@ import { AuthService } from '../core/auth.service';
     <div class="page auth">
       <div class="brand">
         <div class="logo" aria-hidden="true">Aa</div>
-        <h1>Learn Words</h1>
+        <h1 class="gradient-text">Learn Words</h1>
         <p class="muted">{{ mode() === 'login' ? 'Log in to continue learning.' : 'Create an account to start learning.' }}</p>
       </div>
 
@@ -69,8 +69,10 @@ import { AuthService } from '../core/auth.service';
       display: grid;
       place-items: center;
       border-radius: 18px;
-      background: var(--primary);
+      background: var(--gradient);
       color: var(--primary-text);
+      box-shadow: 0 10px 30px rgb(196 179 255 / 0.35);
+      transform: rotate(-6deg);
       font-size: 1.6rem;
       font-weight: 800;
     }

@@ -11,7 +11,7 @@ import { clearSession, completedPasses, loadSession, TOTAL_PASSES } from '../lea
   template: `
     <div class="page">
       <header class="topbar">
-        <h1>Learn Words</h1>
+        <h1 class="gradient-text">Learn Words</h1>
         <a class="btn icon" routerLink="/settings" aria-label="Settings">⚙</a>
       </header>
 
@@ -20,9 +20,9 @@ import { clearSession, completedPasses, loadSession, TOTAL_PASSES } from '../lea
         <p class="name">{{ auth.user()?.username }}</p>
         @if (stats(); as s) {
           <div class="stats">
-            <div><strong>{{ s.due }}</strong><span>due now</span></div>
-            <div><strong>{{ s.learning }}</strong><span>learning</span></div>
-            <div><strong>{{ s.known }}</strong><span>known</span></div>
+            <div class="due"><strong>{{ s.due }}</strong><span>due now</span></div>
+            <div class="learning"><strong>{{ s.learning }}</strong><span>learning</span></div>
+            <div class="known"><strong>{{ s.known }}</strong><span>known</span></div>
           </div>
         }
       </section>
@@ -53,13 +53,22 @@ import { clearSession, completedPasses, loadSession, TOTAL_PASSES } from '../lea
       margin-top: 16px;
       text-align: center;
       div {
-        padding: 10px 4px;
-        border-radius: 12px;
-        background: var(--surface-2);
+        --tint: var(--lavender);
+        padding: 12px 4px;
+        border-radius: 14px;
+        border: 1px solid color-mix(in srgb, var(--tint) 35%, transparent);
+        background: color-mix(in srgb, var(--tint) 14%, transparent);
+      }
+      .due {
+        --tint: var(--peach);
+      }
+      .known {
+        --tint: var(--mint);
       }
       strong {
         display: block;
-        font-size: 1.4rem;
+        font-size: 1.6rem;
+        color: var(--tint);
       }
       span {
         font-size: 0.8rem;

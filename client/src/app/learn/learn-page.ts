@@ -107,11 +107,14 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
     .progress {
       height: 6px;
       border-radius: 3px;
-      background: var(--surface-2);
+      background: rgb(255 255 255 / 0.08);
       overflow: hidden;
       div {
         height: 100%;
-        background: var(--primary);
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--mint), var(--sky), var(--lavender), var(--pink));
+        background-size: 100vw 100%;
+        box-shadow: 0 0 12px rgb(196 179 255 / 0.5);
         transition: width 300ms ease;
       }
     }
@@ -124,11 +127,11 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
     .ghost {
       position: absolute;
       inset: 0;
-      border-radius: 20px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      transform: translateY(calc(var(--i) * 8px)) scale(calc(1 - var(--i) * 0.04));
-      opacity: calc(1 - var(--i) * 0.3);
+      border-radius: 14px;
+      background: var(--paper-edge);
+      box-shadow: 0 8px 20px rgb(0 0 0 / 0.35);
+      transform: translateY(calc(var(--i) * 9px)) rotate(calc(var(--i) * 1.2deg)) scale(calc(1 - var(--i) * 0.04));
+      filter: brightness(calc(0.85 - var(--i) * 0.15));
     }
     .actions {
       display: grid;
@@ -136,9 +139,13 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
       gap: 8px;
       .again {
         color: var(--again);
+        background: rgb(255 201 163 / 0.12);
+        border-color: rgb(255 201 163 / 0.35);
       }
       .done {
         color: var(--done);
+        background: rgb(166 236 208 / 0.12);
+        border-color: rgb(166 236 208 / 0.35);
       }
     }
     .hint {
