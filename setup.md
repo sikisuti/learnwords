@@ -145,7 +145,7 @@ The database contains user accounts, so it's encrypted before it leaves the Pi. 
 
 - n (new remote), name: gdrive-crypt
 - Storage: crypt
-- remote: gdrive:learnwords-backups
+- remote: gdrive:learnwords/backup (the folder in Drive; its name stays readable, only the files inside are encrypted)
 - filename_encryption: standard
 - directory_name_encryption: true
 - password: g to generate one
@@ -159,7 +159,7 @@ Save both passwords in a password manager. The config file only obscures them, a
 > sudo -u learnwords rclone --config /etc/learnwords/rclone.conf copy /var/lib/learnwords/backups gdrive-crypt: -v
 > sudo -u learnwords rclone --config /etc/learnwords/rclone.conf ls gdrive-crypt:
 
-The Drive web page shows a learnwords-backups folder with scrambled file names. The last command lists the real names.
+The Drive web page shows a learnwords/backup folder with scrambled file names inside. The last command lists the real names.
 
 ### Install the backup timer
 
