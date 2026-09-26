@@ -35,7 +35,6 @@ export interface SessionState {
 export interface CurrentCard {
   word: DeckWord;
   side: Side;
-  known: boolean;
   key: number;
 }
 
@@ -82,9 +81,8 @@ export function startSession(userId: number, deck: Deck, random: Random = Math.r
 export function currentCard(state: SessionState): CurrentCard | null {
   if (state.finished || !state.queue.length) return null;
   const id = state.queue[0];
-  const known = state.deck.known.find((w) => w.id === id);
-  const word = known ?? state.deck.learn.find((w) => w.id === id)!;
-  return { word, side: state.sides[id], known: !!known, key: state.step };
+  const word = [...state.deck.learn, ...state.deck.known].find((w) => w.id === id)!;
+  return { word, side: state.sides[id], key: state.step };
 }
 
 /** Swipe right: put the card at the bottom of the deck to see it again in this pass. */

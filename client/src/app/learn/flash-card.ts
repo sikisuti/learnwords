@@ -31,55 +31,22 @@ const EXIT_MS = 220;
       (keydown)="onKey($event)"
       tabindex="0"
       role="button"
-      [attr.aria-label]="'Card showing ' + (flipped() ? back() : front()) + ' text. Tap to flip.'"
+      [attr.aria-label]="textOf(flipped() ? back() : front()) + '. Tap to flip.'"
     >
       <div class="hint again" [style.opacity]="hintOpacity().again">Again</div>
       <div class="hint done" [style.opacity]="hintOpacity().done">Done</div>
       <div class="inner" [class.flipped]="flipped()">
         <section class="face front">
-          <ng-container *ngTemplateOutlet="face; context: { side: front(), details: false }" />
+          <ng-container *ngTemplateOutlet="face; context: { text: textOf(front()) }" />
         </section>
         <section class="face back">
-          <ng-container *ngTemplateOutlet="face; context: { side: back(), details: true }" />
+          <ng-container *ngTemplateOutlet="face; context: { text: textOf(back()) }" />
         </section>
       </div>
     </div>
 
-    <ng-template #face let-side="side" let-details="details">
-      <div class="meta">
-        <span class="side">{{ side === 'native' ? 'Native' : 'Foreign' }}</span>
-        @if (known()) {
-          <span class="badge">Known</span>
-        }
-      </div>
-      <div class="text" [class.long]="(side === 'native' ? word().native : word().foreign).length > 40">
-        {{ side === 'native' ? word().native : word().foreign }}
-      </div>
-      @if (side === 'foreign' && word().pronunciation) {
-        <div class="pron">{{ word().pronunciation }}</div>
-      }
-      @if (details) {
-        <dl class="details">
-          @if (word().lexicalCategory || word().level !== '?') {
-            <div class="tags">
-              @if (word().lexicalCategory) {
-                <span>{{ word().lexicalCategory }}</span>
-              }
-              @if (word().level !== '?') {
-                <span>{{ word().level }}</span>
-              }
-            </div>
-          }
-          @if (word().definition) {
-            <dt>Definition</dt>
-            <dd>{{ word().definition }}</dd>
-          }
-          @if (word().example) {
-            <dt>Example</dt>
-            <dd class="example">{{ word().example }}</dd>
-          }
-        </dl>
-      }
+    <ng-template #face let-text="text">
+      <div class="text" [class.long]="text.length > 40">{{ text }}</div>
     </ng-template>
   `,
   imports: [NgTemplateOutlet],
@@ -88,7 +55,6 @@ const EXIT_MS = 220;
 export class FlashCard {
   readonly word = input.required<DeckWord>();
   readonly front = input.required<Side>();
-  readonly known = input(false);
 
   readonly again = output<void>();
   readonly done = output<void>();
@@ -121,6 +87,10 @@ export class FlashCard {
       done: dy >= dx ? Math.min(1, dy / SWIPE_DISTANCE) : 0,
     };
   });
+
+  protected textOf(side: Side) {
+    return side === 'native' ? this.word().native : this.word().foreign;
+  }
 
   focus() {
     this.card().nativeElement.focus({ preventScroll: true });

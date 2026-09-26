@@ -47,7 +47,8 @@
   position: absolute;
   inset: 0;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: 20px;
   border-radius: 20px;
   background: var(--surface);
@@ -62,26 +63,7 @@
   }
 }
 
-.meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-}
-
-.badge {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--done) 18%, transparent);
-  color: var(--done);
-  font-weight: 700;
-}
-
 .text {
-  margin: auto 0 8px;
   text-align: center;
   font-size: 2rem;
   font-weight: 700;
@@ -90,48 +72,6 @@
 
   &.long {
     font-size: 1.35rem;
-  }
-}
-
-.pron {
-  text-align: center;
-  color: var(--muted);
-  font-size: 1.1rem;
-}
-
-.details {
-  margin: auto 0 0;
-  padding-top: 12px;
-  font-size: 0.95rem;
-  overflow-y: auto;
-
-  dt {
-    margin-top: 8px;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-  }
-
-  dd {
-    margin: 2px 0 0;
-  }
-
-  .example {
-    font-style: italic;
-  }
-}
-
-.tags {
-  display: flex;
-  gap: 6px;
-  justify-content: center;
-
-  span {
-    padding: 2px 10px;
-    border-radius: 999px;
-    background: var(--surface-2);
-    font-size: 0.8rem;
   }
 }
 

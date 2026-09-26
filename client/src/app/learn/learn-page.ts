@@ -71,7 +71,6 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
                 <app-flash-card
                   [word]="c.word"
                   [front]="c.side"
-                  [known]="c.known"
                   (again)="onAgain()"
                   (done)="onDone()"
                 />
@@ -118,9 +117,9 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
     }
     .deck {
       position: relative;
-      flex: 1;
-      min-height: 280px;
-      max-height: 520px;
+      width: 100%;
+      aspect-ratio: 2 / 1;
+      margin: auto 0;
     }
     .ghost {
       position: absolute;
