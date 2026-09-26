@@ -91,3 +91,108 @@ Open Git Bash in the repo.
 PI=pi@raspberrypi.local ./deploy/push-db.sh [path/to/learnwords.db]
 
 It uses server/data/learnwords.db by default, or you can pass a different file as the first argument.
+
+## Database backup to Google Drive
+
+Every night at 02:00 a systemd timer takes a snapshot of the database. It keeps the newest 14 snapshots on the Pi in /var/lib/learnwords/backups and uploads them to Google Drive, encrypted, with rclone. Snapshots older than 90 days are deleted from Drive.
+
+### Install rclone
+
+The Debian package is old, so use the official install script:
+
+> sudo -v ; curl https://rclone.org/install.sh | sudo bash
+
+### Create a Google OAuth client
+
+rclone's built-in client is shared by everyone and rate limited, so create your own. On the PC, open https://console.cloud.google.com:
+
+1. Create a project, for example learnwords-backup.
+2. APIs & Services → Library: find Google Drive API and enable it.
+3. Google Auth Platform → Branding (called OAuth consent screen on older consoles): enter an app name and your email, user type External.
+4. Audience: click Publish app, so the status is In production. In Testing status Google expires the token after 7 days and the uploads stop.
+5. Clients → Create client, application type Desktop app. Note the client ID and client secret.
+
+### Create the rclone config folder
+
+The service user has no home directory, so the config lives in /etc/learnwords. rclone writes refreshed tokens back to the file, so the service user owns the folder:
+
+> sudo install -d -o learnwords -g learnwords -m 700 /etc/learnwords
+
+### Add the Google Drive remote
+
+> sudo -u learnwords rclone config --config /etc/learnwords/rclone.conf
+
+Answer the prompts:
+
+- n (new remote), name: gdrive
+- Storage: drive
+- client_id and client_secret: the values from the Google Cloud Console
+- scope: drive.file (rclone only sees the files it created)
+- service_account_file: leave empty
+- Edit advanced config: n
+- Use web browser to automatically authenticate: n (the Pi has no browser)
+
+rclone prints a command like rclone authorize "drive" "eyJ...". Run it on the PC, which has a browser. Install rclone there first if needed:
+
+> winget install Rclone.Rclone
+> rclone authorize "drive" "eyJ...the exact string from the Pi..."
+
+Sign in to Google. On the "Google hasn't verified this app" warning click Advanced → Go to ... (unsafe), it's your own app, then allow access. Paste the token the PC prints into the config_token prompt on the Pi. Answer n to Configure this as a Shared Drive, then y to keep the remote.
+
+### Add the encryption layer
+
+The database contains user accounts, so it's encrypted before it leaves the Pi. Run rclone config again (same command as above) and add a second remote:
+
+- n (new remote), name: gdrive-crypt
+- Storage: crypt
+- remote: gdrive:learnwords-backups
+- filename_encryption: standard
+- directory_name_encryption: true
+- password: g to generate one
+- password2 (salt): g to generate one
+
+Save both passwords in a password manager. The config file only obscures them, and without them the backups on Drive can't be read if the Pi is lost.
+
+### Test the upload by hand
+
+> sudo -u learnwords rclone --config /etc/learnwords/rclone.conf lsd gdrive:
+> sudo -u learnwords rclone --config /etc/learnwords/rclone.conf copy /var/lib/learnwords/backups gdrive-crypt: -v
+> sudo -u learnwords rclone --config /etc/learnwords/rclone.conf ls gdrive-crypt:
+
+The Drive web page shows a learnwords-backups folder with scrambled file names. The last command lists the real names.
+
+### Install the backup timer
+
+Copy deploy/learnwords-backup.service and deploy/learnwords-backup.timer to /etc/systemd/system/, the same way as learnwords.service. Then run:
+
+> sudo systemctl daemon-reload && sudo systemctl enable --now learnwords-backup.timer
+
+Run a backup straight away and check its log:
+
+> sudo systemctl start learnwords-backup.service
+> journalctl -u learnwords-backup -n 30 --no-pager
+
+Check when it runs next:
+
+> systemctl list-timers learnwords-backup.timer
+
+02:00 is in the Pi's time zone. Check it with timedatectl, and fix it with sudo timedatectl set-timezone <Region/City> if needed. If the Pi is off at 02:00, the backup runs at the next boot.
+
+If an older cron entry for backup-db exists, remove it so snapshots aren't taken twice (delete the line):
+
+> sudo crontab -u learnwords -e
+
+### Restore from Google Drive
+
+List the backups and download one:
+
+> sudo -u learnwords rclone --config /etc/learnwords/rclone.conf ls gdrive-crypt:
+> sudo -u learnwords rclone --config /etc/learnwords/rclone.conf copy gdrive-crypt:learnwords-<date>.db /tmp/restore/
+
+Then restore it as described in the README (Backup and restore). On a new Pi, copy rclone.conf back to /etc/learnwords first, or set up the two remotes again with the same crypt passwords.
+
+### If the uploads stop
+
+Look at the log with journalctl -u learnwords-backup --since yesterday. An invalid_grant error means the Google token has expired. Check that the app is still In production in the Google Cloud Console, then authorize again:
+
+> sudo -u learnwords rclone --config /etc/learnwords/rclone.conf config reconnect gdrive:

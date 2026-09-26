@@ -1,0 +1,34 @@
+# Nightly database snapshot, uploaded encrypted to Google Drive. Started by learnwords-backup.timer.
+# Needs rclone set up with the gdrive and gdrive-crypt remotes in /etc/learnwords/rclone.conf (see setup.md).
+#   sudo cp deploy/learnwords-backup.service deploy/learnwords-backup.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now learnwords-backup.timer
+# Run it once by hand: sudo systemctl start learnwords-backup.service
+[Unit]
+Description=Learn Words database backup to Google Drive
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=learnwords
+Group=learnwords
+WorkingDirectory=/opt/learnwords
+Environment=DATA_DIR=/var/lib/learnwords
+Environment=RCLONE_CONFIG=/etc/learnwords/rclone.conf
+# The service user has no home directory, so rclone gets a cache folder here instead.
+CacheDirectory=learnwords-rclone
+Environment=RCLONE_CACHE_DIR=/var/cache/learnwords-rclone
+# The steps run in order and stop at the first failure, so nothing is uploaded without a fresh
+# snapshot and nothing is deleted from Drive if the upload fails.
+# Keeps the newest 14 snapshots on the Pi.
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning dist/scripts/backup-db.js --keep 14
+ExecStart=/usr/bin/rclone copy /var/lib/learnwords/backups gdrive-crypt: --log-level INFO
+# Keeps 90 days of snapshots on Drive.
+ExecStart=/usr/bin/rclone delete gdrive-crypt: --min-age 90d --log-level INFO
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# rclone writes refreshed OAuth tokens back to its config file.
+ReadWritePaths=/var/lib/learnwords /etc/learnwords

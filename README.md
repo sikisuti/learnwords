@@ -69,13 +69,9 @@ This builds everything locally, uploads `dist/`, `public/` and `package.json` to
 
 ## Backup and restore
 
-`backup-db` writes a consistent snapshot using SQLite's `VACUUM INTO`. It is safe while the app is running, and it keeps the newest 14 snapshots by default. Nightly cron entry on the Pi (`sudo crontab -u learnwords -e`):
+`backup-db` writes a consistent snapshot using SQLite's `VACUUM INTO`. It is safe while the app is running, and it keeps the newest 14 snapshots by default. The backups go to `/var/lib/learnwords/backups`.
 
-```cron
-30 3 * * * cd /opt/learnwords && DATA_DIR=/var/lib/learnwords /usr/bin/node dist/scripts/backup-db.js --keep 14
-```
-
-The backups go to `/var/lib/learnwords/backups`. Copy them off the SD card regularly (rsync to a NAS, a USB stick, and so on).
+On the Pi, [deploy/learnwords-backup.timer](deploy/learnwords-backup.timer) runs [deploy/learnwords-backup.service](deploy/learnwords-backup.service) every night at 02:00. It takes a snapshot, then uploads the backups folder to Google Drive with rclone, encrypted, and deletes uploads older than 90 days. The one-time rclone and Google setup is in [setup.md](setup.md#database-backup-to-google-drive).
 
 To restore:
 
