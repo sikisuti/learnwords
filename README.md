@@ -86,6 +86,16 @@ sudo rm -f /var/lib/learnwords/learnwords.db-wal /var/lib/learnwords/learnwords.
 sudo systemctl start learnwords
 ```
 
+### Pushing a local database to the Pi
+
+To replace the production database with a local file, run this from the development machine:
+
+```bash
+PI=pi@raspberrypi.local ./deploy/push-db.sh [path/to/learnwords.db]
+```
+
+The file defaults to `server/data/learnwords.db`. The script takes a consistent snapshot of it, which also picks up changes still in the `-wal` file, and checks its integrity. After you confirm (set `YES=1` to skip the prompt), it stops the service and backs up the current production database to `/var/lib/learnwords/backups/pre-push`, where the newest 14 are kept. Then it installs the new file, owned by `learnwords`, and starts the service again. The nightly backups do not prune the `pre-push` folder.
+
 ## Migrating from the old LearnWords
 
 [tools/merge-legacy-dump.mjs](tools/merge-legacy-dump.mjs) merges a `mysqldump` of the old MariaDB-based LearnWords (its `Auth` and `LearnWords` databases) into a new SQLite database. It is a standalone script: it needs only Node.js 24+, no `npm install`, and no build.

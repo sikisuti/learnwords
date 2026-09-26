@@ -14,7 +14,10 @@ WorkingDirectory=/opt/learnwords
 StateDirectory=learnwords
 Environment=NODE_ENV=production
 Environment=DATA_DIR=/var/lib/learnwords
-Environment=PORT=3000
+Environment=PORT=80
+# Lets the unprivileged service user bind to a port below 1024.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 # Set to true when the app is served over HTTPS (e.g. behind a reverse proxy).
 Environment=COOKIE_SECURE=false
 ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning --max-old-space-size=200 dist/src/main.js
