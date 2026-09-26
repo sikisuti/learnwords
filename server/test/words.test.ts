@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { importWord, normalizeForeign } from '../src/services/words.ts';
+import { addOrLinkWord, normalizeForeign } from '../src/services/words.ts';
 import { registerUser, testApp } from './helpers.ts';
 
 const count = (db: { prepare: Function }, sql: string, ...params: unknown[]) =>
@@ -63,10 +63,11 @@ test('manually added words without a level are unlevelled', async () => {
 test('search finds dictionary words and reports the user stage; learn links them', async () => {
   const { app, db } = await testApp();
   const { headers } = await registerUser(app);
-  importWord(db, { native: 'house', foreign: 'das Haus', level: 'A1' }, false);
-  importWord(db, { native: 'household', foreign: 'der Haushalt', level: 'B1' }, false);
-  importWord(db, { native: 'cat', foreign: 'die Katze', level: 'A1' }, false);
-  importWord(db, { native: '100%', foreign: 'hundert Prozent' }, false);
+  const other = await registerUser(app, 'bob');
+  addOrLinkWord(db, other.id, { native: 'house', foreign: 'das Haus', level: 'A1' });
+  addOrLinkWord(db, other.id, { native: 'household', foreign: 'der Haushalt', level: 'B1' });
+  addOrLinkWord(db, other.id, { native: 'cat', foreign: 'die Katze', level: 'A1' });
+  addOrLinkWord(db, other.id, { native: '100%', foreign: 'hundert Prozent' });
 
   const hits = (await app.inject({ method: 'GET', url: '/api/words/search?q=haus', headers })).json();
   assert.deepEqual(
@@ -88,13 +89,4 @@ test('search finds dictionary words and reports the user stage; learn links them
 
   const missing = await app.inject({ method: 'POST', url: '/api/words/999/learn', headers });
   assert.equal(missing.statusCode, 404);
-});
-
-test('import skips existing words unless updating', async () => {
-  const { db } = await testApp();
-  assert.equal(importWord(db, { native: 'house', foreign: 'das Haus', level: 'A1' }, false), 'inserted');
-  assert.equal(importWord(db, { native: 'home', foreign: 'Das Haus', level: 'A2' }, false), 'skipped');
-  assert.equal(importWord(db, { native: 'home', foreign: 'Das Haus', level: 'A2' }, true), 'updated');
-  assert.equal(count(db, "SELECT level_id AS n FROM word WHERE native = 'home'"), 2);
-  assert.throws(() => importWord(db, { native: 'x', foreign: 'y', level: 'Z9' }, false), /Unknown level/);
 });

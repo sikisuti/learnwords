@@ -36,17 +36,6 @@ Tests:
 npm test                         # server (node:test) + client (Vitest)
 ```
 
-### Importing words
-
-The import script takes a CSV (with a header row) or a JSON array. The fields are `native`, `foreign`, `definition`, `example`, `pronunciation`, `level` (A1–C2, or empty) and `lexical_category`. Only `native` and `foreign` are required. See [server/scripts/sample-words.csv](server/scripts/sample-words.csv).
-
-```bash
-npm run import -- server/scripts/sample-words.csv            # skips words that already exist
-npm run import -- words.csv --update                        # overwrites existing words instead
-```
-
-Imported words go into the dictionary but not onto anyone's list. Users add them by typing on the **Add a word** screen and tapping a match.
-
 ## Configuration
 
 | Variable | Default | Meaning |
@@ -77,12 +66,6 @@ PI=pi@raspberrypi.local ./deploy/deploy.sh
 ```
 
 This builds everything locally, uploads `dist/`, `public/` and `package.json` to `/opt/learnwords`, installs the server's dependencies (pure JavaScript) and restarts the service. The database lives in `/var/lib/learnwords`, separate from the application.
-
-To import words on the Pi:
-
-```bash
-cd /opt/learnwords && sudo -u learnwords DATA_DIR=/var/lib/learnwords node dist/scripts/import-words.js words.csv
-```
 
 ## Backup and restore
 

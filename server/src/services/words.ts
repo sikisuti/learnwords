@@ -145,29 +145,3 @@ export function searchWords(db: Db, userId: number, query: string, limit = 10): 
     )
     .all({ user: userId, contains: `%${q}%`, prefix: `${q}%`, limit }) as unknown as SearchHit[];
 }
-
-export type ImportOutcome = 'inserted' | 'updated' | 'skipped';
-
-/** Used by the import script: inserts a dictionary word, or skips/updates it if the foreign text already exists. */
-export function importWord(db: Db, input: WordInput, update: boolean, now = new Date()): ImportOutcome {
-  const existingId = findWordIdByForeign(db, input.foreign);
-  if (existingId === undefined) {
-    insertWord(db, input, now);
-    return 'inserted';
-  }
-  if (!update) return 'skipped';
-  db.prepare(
-    `UPDATE word SET native = ?, "foreign" = ?, definition = ?, example = ?, pronunciation = ?, level_id = ?, lexical_category = ?
-      WHERE id = ?`,
-  ).run(
-    input.native.trim(),
-    input.foreign.trim(),
-    blankToNull(input.definition),
-    blankToNull(input.example),
-    blankToNull(input.pronunciation),
-    levelIdFor(db, input.level),
-    blankToNull(input.lexicalCategory),
-    existingId,
-  );
-  return 'updated';
-}
