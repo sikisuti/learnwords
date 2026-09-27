@@ -1,9 +1,21 @@
+import type { DatabaseSync } from 'node:sqlite';
+
+export interface Migration {
+  name: string;
+  /** SQL script, or a function for changes SQL alone cannot make (e.g. data rewritten with app code) */
+  up: string | ((db: DatabaseSync) => void);
+}
+
 /**
- * Schema migrations, applied in order. Never edit an applied migration; append a new one.
+ * Schema migrations, applied in order by migrate(). Never edit or reorder an applied migration; append a new one.
+ * Foreign keys are off while they run (and checked before commit), so a table can be rebuilt with the
+ * create-copy-drop-rename steps from https://www.sqlite.org/lang_altertable.html#otheralter.
  * Timestamps are ISO-8601 UTC strings ('YYYY-MM-DDTHH:MM:SS.sssZ') so SQLite date functions work on them.
  */
-export const migrations: string[] = [
-  /* 1: initial schema */ `
+export const migrations: Migration[] = [
+  {
+    name: 'initial schema',
+    up: `
   CREATE TABLE level (
     id   INTEGER PRIMARY KEY,
     code TEXT NOT NULL UNIQUE,
@@ -55,8 +67,10 @@ export const migrations: string[] = [
     expires_at TEXT NOT NULL
   ) WITHOUT ROWID;
   `,
-
-  /* 2: per-user settings move to user_configuration */ `
+  },
+  {
+    name: 'per-user settings move to user_configuration',
+    up: `
   CREATE TABLE user_configuration (
     user_id             INTEGER PRIMARY KEY REFERENCES user (id) ON DELETE CASCADE,
     session_size        INTEGER NOT NULL DEFAULT 5 CHECK (session_size BETWEEN 1 AND 50),
@@ -65,4 +79,5 @@ export const migrations: string[] = [
   INSERT INTO user_configuration (user_id, session_size) SELECT id, session_size FROM user;
   ALTER TABLE user DROP COLUMN session_size;
   `,
+  },
 ];

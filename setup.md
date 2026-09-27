@@ -86,6 +86,45 @@ Open Git Bash in the repo.
 > cd /c/Sources/learnwords
 > PI=pi@raspberrypi.local ./deploy/deploy.sh
 
+The script builds locally, uploads the release to /opt/learnwords/incoming and runs deploy/install-release.sh on the Pi, which:
+
+1. installs the release's dependencies while the current release keeps running
+2. stops the app, backs up the database to /var/lib/learnwords/backups/pre-migrate (only if migrations are pending; the newest 14 are kept) and applies the pending migrations
+3. moves the current release to /opt/learnwords/previous, puts the new one in place and starts it
+4. waits up to 30 seconds for the app to answer on /health
+
+If a migration fails, all of that deploy's migrations are rolled back together, the database is unchanged and the current release starts again. If the new release doesn't come up, the previous release is put back, and the database backup too if the schema changed. Either way the script ends with an error and prints the reason.
+
+## Database schema changes
+
+The schema is changed only by migrations in server/src/db/migrations.ts. The database stores how many have been applied (PRAGMA user_version), and each deploy applies the new ones in order. The app also applies pending migrations at startup, so the dev database and a pushed database are upgraded the same way.
+
+To change the schema, append a migration to the list with a name and an up step: a SQL script, or a function that gets the database for changes SQL can't make on its own. Never edit, reorder or remove one that has been deployed. SQLite's ALTER TABLE can only add, rename and drop columns. For anything else (changing a constraint or a column type), rebuild the table: create the new table, copy the rows, drop the old table, rename the new one. Foreign keys are switched off while migrations run, so the drop doesn't cascade to other tables, and they are checked before the commit.
+
+Check the migrations against real data before deploying. Copy the newest backup from the Pi and run them on it:
+
+> scp pi@raspberrypi.local:/var/lib/learnwords/backups/learnwords-*.db /tmp/
+> cd server
+> node scripts/migrate-db.ts --db /tmp/learnwords-<date>.db --backup-dir /tmp/pre
+
+Show which migrations the production database has applied:
+
+> ssh pi@raspberrypi.local "cd /opt/learnwords && sudo -u learnwords DATA_DIR=/var/lib/learnwords node dist/scripts/migrate-db.js --status"
+
+The app refuses to start when the database has more migrations than it knows about, for example when an older build is started on a newer database.
+
+### Rolling back a release by hand
+
+To go back after a deploy that succeeded but turned out to be broken, put the previous release back. If that deploy changed the schema, restore the pre-migrate backup too. Everything saved since that deploy is then lost, so fixing forward with a new release is usually better.
+
+> ssh pi@raspberrypi.local
+> sudo systemctl stop learnwords
+> cd /opt/learnwords && for f in dist public package.json package-lock.json node_modules; do sudo rm -rf $f; sudo mv previous/$f .; done
+> ls /var/lib/learnwords/backups/pre-migrate    # only if the schema changed: restore the newest one
+> sudo install -o learnwords -g learnwords -m 640 /var/lib/learnwords/backups/pre-migrate/learnwords-<date>.db /var/lib/learnwords/learnwords.db
+> sudo rm -f /var/lib/learnwords/learnwords.db-wal /var/lib/learnwords/learnwords.db-shm
+> sudo systemctl start learnwords
+
 ## Upload database
 
 PI=pi@raspberrypi.local ./deploy/push-db.sh [path/to/learnwords.db]

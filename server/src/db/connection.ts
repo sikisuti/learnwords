@@ -5,14 +5,20 @@ import { migrate } from './migrate.ts';
 
 export type Db = DatabaseSync;
 
-/** Opens (and creates if needed) the SQLite database and brings its schema up to date. */
-export function openDatabase(path: string): Db {
+/** Opens (and creates if needed) the SQLite database with the app's connection settings, without migrating it. */
+export function connect(path: string): Db {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   if (path !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('PRAGMA busy_timeout = 5000');
   db.exec('PRAGMA synchronous = NORMAL');
+  return db;
+}
+
+/** Opens (and creates if needed) the SQLite database and brings its schema up to date. */
+export function openDatabase(path: string): Db {
+  const db = connect(path);
   migrate(db);
   return db;
 }

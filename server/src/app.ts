@@ -30,7 +30,11 @@ export async function buildApp({ db, cookieSecure = false, publicDir, logger = f
     request.user = token ? findSessionUser(db, token) : null;
   });
 
-  app.get('/health', async () => ({ ok: true }));
+  // Also proves the database is readable; the deploy script waits for this after a restart.
+  app.get('/health', async () => {
+    db.prepare('SELECT 1').get();
+    return { ok: true };
+  });
 
   await app.register(
     async (api) => {
