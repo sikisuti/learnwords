@@ -103,8 +103,8 @@ const normalize = (text: string) => text.normalize('NFC').trim().replace(/\s+/g,
       list-style: none;
       margin: -4px 0 0;
       padding: 0;
-      border: 1px solid var(--border);
-      border-radius: 12px;
+      border: 3px solid var(--border);
+      border-radius: var(--wobble-sm);
       overflow: hidden;
       li + li {
         border-top: 1px solid var(--border);

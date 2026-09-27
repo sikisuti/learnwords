@@ -11,7 +11,7 @@ import { clearSession, completedPasses, loadSession, TOTAL_PASSES } from '../lea
   template: `
     <div class="page">
       <header class="topbar">
-        <h1 class="gradient-text">Learn Words</h1>
+        <h1><span class="doodle-title">Learn Words</span></h1>
         <a class="btn icon" routerLink="/settings" aria-label="Settings">⚙</a>
       </header>
 
@@ -20,9 +20,9 @@ import { clearSession, completedPasses, loadSession, TOTAL_PASSES } from '../lea
         <p class="name">{{ auth.user()?.username }}</p>
         @if (stats(); as s) {
           <div class="stats">
-            <div class="due"><strong>{{ s.due }}</strong><span>due now</span></div>
-            <div class="learning"><strong>{{ s.learning }}</strong><span>learning</span></div>
-            <div class="known"><strong>{{ s.known }}</strong><span>known</span></div>
+            <div class="due sketch"><strong>{{ s.due }}</strong><span>due now</span></div>
+            <div class="learning sketch"><strong>{{ s.learning }}</strong><span>learning</span></div>
+            <div class="known sketch"><strong>{{ s.known }}</strong><span>known</span></div>
           </div>
         }
       </section>
@@ -53,26 +53,30 @@ import { clearSession, completedPasses, loadSession, TOTAL_PASSES } from '../lea
       margin-top: 16px;
       text-align: center;
       div {
-        --tint: var(--lavender);
+        --line-color: var(--ink);
         padding: 12px 4px;
-        border-radius: 14px;
-        border: 1px solid color-mix(in srgb, var(--tint) 35%, transparent);
-        background: color-mix(in srgb, var(--tint) 14%, transparent);
+        border-radius: var(--wobble-sm);
+        background: var(--lavender);
+        color: var(--primary-text);
+        box-shadow: 3px 4px 0 rgb(0 0 0 / 0.45);
+        transform: rotate(1deg);
       }
       .due {
-        --tint: var(--peach);
+        background: var(--peach);
+        transform: rotate(-1.5deg);
       }
       .known {
-        --tint: var(--mint);
+        background: var(--mint);
+        transform: rotate(-0.5deg);
       }
       strong {
         display: block;
-        font-size: 1.6rem;
-        color: var(--tint);
+        font-size: 1.7rem;
+        line-height: 1.2;
       }
       span {
-        font-size: 0.8rem;
-        color: var(--muted);
+        font-size: 0.85rem;
+        opacity: 0.75;
       }
     }
     .logout {

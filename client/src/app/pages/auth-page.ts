@@ -11,8 +11,8 @@ import { AuthService } from '../core/auth.service';
   template: `
     <div class="page auth">
       <div class="brand">
-        <div class="logo" aria-hidden="true">Aa</div>
-        <h1 class="gradient-text">Learn Words</h1>
+        <div class="logo sketch" aria-hidden="true">Aa</div>
+        <h1><span class="doodle-title">Learn Words</span></h1>
         <p class="muted">{{ mode() === 'login' ? 'Log in to continue learning.' : 'Create an account to start learning.' }}</p>
       </div>
 
@@ -68,10 +68,12 @@ import { AuthService } from '../core/auth.service';
       margin: 0 auto 12px;
       display: grid;
       place-items: center;
-      border-radius: 18px;
-      background: var(--gradient);
+      --line-color: var(--ink);
+      --stroke: 3.5px;
+      border-radius: var(--wobble-sm);
+      background: var(--butter);
       color: var(--primary-text);
-      box-shadow: 0 10px 30px rgb(196 179 255 / 0.35);
+      box-shadow: 4px 5px 0 rgb(0 0 0 / 0.45);
       transform: rotate(-6deg);
       font-size: 1.6rem;
       font-weight: 800;

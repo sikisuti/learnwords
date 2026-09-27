@@ -38,10 +38,10 @@ const EXIT_MS = 220;
       <div class="hint again" [style.opacity]="hintOpacity().again">Again</div>
       <div class="hint done" [style.opacity]="hintOpacity().done">Done</div>
       <div class="inner" [class.flipped]="flipped()">
-        <section class="face front">
+        <section class="sketch-twice face front">
           <ng-container *ngTemplateOutlet="face; context: { text: textOf(front()) }" />
         </section>
-        <section class="face back">
+        <section class="sketch-twice face back">
           <ng-container *ngTemplateOutlet="face; context: { text: textOf(back()) }" />
         </section>
       </div>

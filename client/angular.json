@@ -31,6 +31,9 @@
               }
             ],
             "styles": [
+              "@fontsource/mali/400.css",
+              "@fontsource/mali/600.css",
+              "@fontsource/mali/700.css",
               "src/styles.scss"
             ],
             "outputPath": {

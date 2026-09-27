@@ -59,13 +59,13 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
           <p class="muted center">Saving your progress…</p>
         }
         @case ('learning') {
-          <div class="progress" role="progressbar" [attr.aria-valuenow]="progress()" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress sketch" role="progressbar" [attr.aria-valuenow]="progress()" aria-valuemin="0" aria-valuemax="100">
             <div [style.width.%]="progress()"></div>
           </div>
 
           <div class="deck">
             @for (ghost of ghosts(); track ghost) {
-              <div class="ghost" [style.--i]="ghost"></div>
+              <div class="ghost sketch" [style.--i]="ghost"></div>
             }
             @if (card(); as c) {
               @for (key of [c.key]; track key) {
@@ -113,16 +113,16 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
       margin: auto 0;
     }
     .progress {
-      height: 6px;
-      border-radius: 3px;
-      background: rgb(255 255 255 / 0.08);
-      overflow: hidden;
+      --stroke: 2.5px;
+      height: 16px;
+      padding: 4px;
+      border-radius: 8px 4px 9px 3px / 4px 8px 3px 9px;
+      background: rgb(255 255 255 / 0.05);
       div {
         height: 100%;
-        border-radius: inherit;
-        background: linear-gradient(90deg, var(--mint), var(--sky), var(--lavender), var(--pink));
+        border-radius: 5px 2px 6px 2px;
+        background: linear-gradient(90deg, var(--mint), var(--sky), var(--lavender));
         background-size: 100vw 100%;
-        box-shadow: 0 0 12px rgb(196 179 255 / 0.5);
         transition: width 300ms ease;
       }
     }
@@ -135,9 +135,10 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
     .ghost {
       position: absolute;
       inset: 0;
-      border-radius: 14px;
+      --line-color: var(--ink);
+      border-radius: var(--wobble);
       background: var(--paper-edge);
-      box-shadow: 0 8px 20px rgb(0 0 0 / 0.35);
+      box-shadow: 5px 6px 0 rgb(0 0 0 / 0.4);
       transform: translateY(calc(var(--i) * 9px)) rotate(calc(var(--i) * 1.2deg)) scale(calc(1 - var(--i) * 0.04));
       filter: brightness(calc(0.85 - var(--i) * 0.15));
     }
@@ -145,15 +146,18 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
       display: grid;
       grid-template-columns: 1fr auto 1fr;
       gap: 8px;
+      .again,
+      .done {
+        --line-color: var(--ink);
+        color: var(--primary-text);
+      }
       .again {
-        color: var(--again);
-        background: rgb(255 201 163 / 0.12);
-        border-color: rgb(255 201 163 / 0.35);
+        --btn-shade: #b07a52;
+        background: var(--again);
       }
       .done {
-        color: var(--done);
-        background: rgb(166 236 208 / 0.12);
-        border-color: rgb(166 236 208 / 0.35);
+        --btn-shade: #5e9f86;
+        background: var(--done);
       }
     }
     .switch {
@@ -178,34 +182,33 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
         flex: none;
         width: 44px;
         height: 26px;
-        border-radius: 13px;
-        background: rgb(255 255 255 / 0.12);
-        border: 1px solid var(--glass-border);
+        border-radius: 14px 11px 13px 12px;
+        border: 2.5px solid var(--border);
+        background: rgb(255 255 255 / 0.08);
         transition: background-color 150ms ease;
         &::after {
           content: '';
           position: absolute;
-          top: 2px;
-          left: 2px;
+          top: 1px;
+          left: 1px;
           width: 20px;
           height: 20px;
           border-radius: 50%;
           background: var(--text);
-          box-shadow: 0 1px 3px rgb(0 0 0 / 0.4);
           transition: transform 150ms ease;
         }
       }
       input:checked + .track {
-        background: var(--gradient);
-        border-color: transparent;
+        border-color: var(--mint);
+        background: var(--mint);
         &::after {
           transform: translateX(18px);
           background: var(--primary-text);
         }
       }
       input:focus-visible + .track {
-        outline: 2px solid var(--primary);
-        outline-offset: 2px;
+        outline: 2px dashed var(--primary);
+        outline-offset: 3px;
       }
     }
     .hint {
