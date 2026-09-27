@@ -82,15 +82,6 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
             }
           </div>
 
-          <div class="actions">
-            <button class="btn again" (click)="flashCard()?.throw('right')" aria-label="Again: put the card to the bottom">
-              ↻ Again
-            </button>
-            <button class="btn" (click)="flashCard()?.flip()">Flip</button>
-            <button class="btn done" (click)="flashCard()?.throw('down')" aria-label="Done: take the card out for this turn">
-              ✓ Done
-            </button>
-          </div>
           @if (speech.supported) {
             <label class="switch">
               <input type="checkbox" role="switch" [checked]="speech.autoPlay()" (change)="toggleAutoPlay($event)" />
@@ -98,7 +89,8 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
               Auto-play English pronunciation
             </label>
           }
-          <p class="muted hint">Tap to flip · swipe right to repeat · down when you got it · up if you already know it</p>
+          <p class="muted hint touch">Tap to flip · swipe right to repeat · down when you got it · up if you already know it</p>
+          <p class="muted hint keys">Space to flip · → to repeat · ↓ when you got it · ↑ if you already know it</p>
         }
       }
     </div>
@@ -144,24 +136,6 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
       box-shadow: 5px 6px 0 rgb(0 0 0 / 0.4);
       transform: translateY(calc(var(--i) * 9px)) rotate(calc(var(--i) * 1.2deg)) scale(calc(1 - var(--i) * 0.04));
       filter: brightness(calc(0.85 - var(--i) * 0.15));
-    }
-    .actions {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      gap: 8px;
-      .again,
-      .done {
-        --line-color: var(--ink);
-        color: var(--primary-text);
-      }
-      .again {
-        --btn-shade: #b07a52;
-        background: var(--again);
-      }
-      .done {
-        --btn-shade: #5e9f86;
-        background: var(--done);
-      }
     }
     .switch {
       display: flex;
@@ -218,6 +192,18 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
       margin: 0;
       text-align: center;
       font-size: 0.85rem;
+    }
+    /* Keyboard hints on desktop (mouse), gesture hints on touch screens. */
+    .hint.keys {
+      display: none;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .hint.touch {
+        display: none;
+      }
+      .hint.keys {
+        display: block;
+      }
     }
   `,
   host: { '(document:keydown)': 'onKey($event)' },
