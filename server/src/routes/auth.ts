@@ -20,6 +20,23 @@ const credentialsSchema = {
   },
 } as const;
 
+interface PasswordChange {
+  currentPassword: string;
+  newPassword: string;
+}
+
+const passwordChangeSchema = {
+  body: {
+    type: 'object',
+    required: ['currentPassword', 'newPassword'],
+    additionalProperties: false,
+    properties: {
+      currentPassword: { type: 'string' },
+      newPassword: { type: 'string' },
+    },
+  },
+} as const;
+
 // Used when the username does not exist, so a failed login takes the same time either way.
 const dummyHash = hashPassword('not-a-real-password');
 
@@ -73,4 +90,25 @@ export function authRoutes(app: FastifyInstance, db: Db, cookieSecure: boolean) 
   });
 
   app.get('/auth/me', { preHandler: requireAuth }, async (request) => request.user);
+
+  app.post<{ Body: PasswordChange }>(
+    '/auth/password',
+    { schema: passwordChangeSchema, preHandler: requireAuth, ...rateLimit },
+    async (request, reply) => {
+      const { currentPassword, newPassword } = request.body;
+      const userId = request.user!.id;
+      const { hash } = db.prepare('SELECT password_hash AS hash FROM user WHERE id = ?').get(userId) as { hash: string };
+      if (!(await verifyPassword(currentPassword, hash))) {
+        return reply.code(403).send({ error: 'The current password is wrong' });
+      }
+      const newHash = await hashPassword(newPassword);
+      transaction(db, () => {
+        db.prepare('UPDATE user SET password_hash = ? WHERE id = ?').run(newHash, userId);
+        // Other devices have to log in again with the new password; this one gets a fresh session.
+        db.prepare('DELETE FROM session WHERE user_id = ?').run(userId);
+      });
+      startSession(reply, userId);
+      return reply.code(204).send();
+    },
+  );
 }

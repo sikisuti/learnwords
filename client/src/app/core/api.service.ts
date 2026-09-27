@@ -13,6 +13,8 @@ export class ApiService {
   register = (username: string, password: string) =>
     firstValueFrom(this.http.post<User>('/api/auth/register', { username, password }));
   logout = () => firstValueFrom(this.http.post<void>('/api/auth/logout', {}));
+  changePassword = (currentPassword: string, newPassword: string) =>
+    firstValueFrom(this.http.post<void>('/api/auth/password', { currentPassword, newPassword }));
 
   updateSettings = (settings: Settings) => firstValueFrom(this.http.patch<User>('/api/settings', settings));
   stats = () => firstValueFrom(this.http.get<Stats>('/api/stats'));

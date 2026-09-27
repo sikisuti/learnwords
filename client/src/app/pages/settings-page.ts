@@ -36,7 +36,34 @@ import { ToastService } from '../core/toast.service';
         }
         <button class="btn primary block" type="submit" [disabled]="busy()">Save</button>
       </form>
+
+      <form class="panel" (ngSubmit)="changePassword()">
+        <h2>Change password</h2>
+        <label class="field">
+          <span>Current password</span>
+          <input type="password" name="current" autocomplete="current-password" [(ngModel)]="currentPassword" />
+        </label>
+        <label class="field">
+          <span>New password</span>
+          <input type="password" name="new" autocomplete="new-password" [(ngModel)]="newPassword" />
+        </label>
+        <label class="field">
+          <span>Repeat new password</span>
+          <input type="password" name="repeat" autocomplete="new-password" [(ngModel)]="repeatPassword" />
+          <small>Your other devices will be logged out.</small>
+        </label>
+        @if (passwordError()) {
+          <p class="error" role="alert">{{ passwordError() }}</p>
+        }
+        <button class="btn primary block" type="submit" [disabled]="passwordBusy()">Change password</button>
+      </form>
     </div>
+  `,
+  styles: `
+    h2 {
+      margin: 0;
+      font-size: 1.15rem;
+    }
   `,
 })
 export class SettingsPage {
@@ -48,6 +75,12 @@ export class SettingsPage {
   protected fillWithNewWords = this.auth.user()!.fillWithNewWords;
   protected readonly busy = signal(false);
   protected readonly error = signal('');
+
+  protected currentPassword = '';
+  protected newPassword = '';
+  protected repeatPassword = '';
+  protected readonly passwordBusy = signal(false);
+  protected readonly passwordError = signal('');
 
   protected async save() {
     const size = Number(this.size);
@@ -64,6 +97,24 @@ export class SettingsPage {
       this.error.set(errorMessage(err));
     } finally {
       this.busy.set(false);
+    }
+  }
+
+  protected async changePassword() {
+    if (this.newPassword !== this.repeatPassword) {
+      this.passwordError.set('The new passwords do not match.');
+      return;
+    }
+    this.passwordBusy.set(true);
+    this.passwordError.set('');
+    try {
+      await this.api.changePassword(this.currentPassword, this.newPassword);
+      this.currentPassword = this.newPassword = this.repeatPassword = '';
+      this.toast.show('Password changed.');
+    } catch (err) {
+      this.passwordError.set(errorMessage(err));
+    } finally {
+      this.passwordBusy.set(false);
     }
   }
 }

@@ -106,3 +106,49 @@ test('settings can be changed within limits', async () => {
   });
   assert.equal(notBoolean.statusCode, 400);
 });
+
+test('changing the password needs the current one and logs out other sessions', async () => {
+  const { app } = await testApp();
+  const { headers } = await registerUser(app, 'alice', 'old-password');
+  const login = await app.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    payload: { username: 'alice', password: 'old-password' },
+  });
+  const other = login.cookies.find((c) => c.name === 'lw_session')!;
+  const otherHeaders = { cookie: `${other.name}=${other.value}` };
+
+  const anonymous = await app.inject({
+    method: 'POST',
+    url: '/api/auth/password',
+    payload: { currentPassword: 'old-password', newPassword: 'new-password' },
+  });
+  assert.equal(anonymous.statusCode, 401);
+  const wrong = await app.inject({
+    method: 'POST',
+    url: '/api/auth/password',
+    headers,
+    payload: { currentPassword: 'not-it', newPassword: 'new-password' },
+  });
+  assert.equal(wrong.statusCode, 403);
+
+  const ok = await app.inject({
+    method: 'POST',
+    url: '/api/auth/password',
+    headers,
+    payload: { currentPassword: 'old-password', newPassword: 'new-password' },
+  });
+  assert.equal(ok.statusCode, 204);
+  const fresh = ok.cookies.find((c) => c.name === 'lw_session')!;
+  const me = await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: `${fresh.name}=${fresh.value}` } });
+  assert.equal(me.statusCode, 200);
+  for (const h of [headers, otherHeaders]) {
+    const res = await app.inject({ method: 'GET', url: '/api/auth/me', headers: h });
+    assert.equal(res.statusCode, 401);
+  }
+
+  for (const [password, status] of [['old-password', 401], ['new-password', 200]] as const) {
+    const res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { username: 'alice', password } });
+    assert.equal(res.statusCode, status, password);
+  }
+});
