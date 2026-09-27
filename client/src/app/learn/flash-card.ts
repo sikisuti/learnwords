@@ -25,7 +25,8 @@ function leaning(dx: number, dy: number): { direction: Exit; distance: number } 
 
 /**
  * A two-sided card. Tap flips it; drag right ("again"), down ("done") or up ("known") throws it off the deck.
- * Up only works while `canMarkKnown` is true; otherwise an upward drag springs back.
+ * Up only works while `canMarkKnown` is true, which also shows the auto-added label; otherwise an upward drag
+ * springs back.
  * The parent listens to `again` / `done` / `known`, which fire after the throw animation has finished.
  * The speaker button reads the foreign word aloud; with auto-play on, it is read whenever the foreign side shows.
  */
@@ -45,7 +46,7 @@ function leaning(dx: number, dy: number): { direction: Exit; distance: number } 
       (keydown)="onKey($event)"
       tabindex="0"
       role="button"
-      [attr.aria-label]="(word().autoAdded ? 'Auto-added. ' : '') + textOf(flipped() ? back() : front()) + '. Tap to flip.'"
+      [attr.aria-label]="(canMarkKnown() ? 'Auto-added. ' : '') + textOf(flipped() ? back() : front()) + '. Tap to flip.'"
     >
       <div class="hint again" [style.opacity]="hintOpacity().again">Again</div>
       <div class="hint done" [style.opacity]="hintOpacity().done">Done</div>
@@ -76,7 +77,7 @@ function leaning(dx: number, dy: number): { direction: Exit; distance: number } 
     </div>
 
     <ng-template #face let-text="text">
-      @if (word().autoAdded) {
+      @if (canMarkKnown()) {
         <span class="tag" aria-hidden="true">auto-added</span>
       }
       <div class="text" [class.long]="text.length > 40">{{ text }}</div>
@@ -88,7 +89,7 @@ function leaning(dx: number, dy: number): { direction: Exit; distance: number } 
 export class FlashCard implements OnInit {
   readonly word = input.required<DeckWord>();
   readonly front = input.required<Side>();
-  /** whether swiping up ("known") is allowed for this card */
+  /** whether swiping up ("known") is allowed for this card; the auto-added label shows while it is */
   readonly canMarkKnown = input(false);
 
   readonly again = output<void>();

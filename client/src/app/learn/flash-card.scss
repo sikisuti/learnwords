@@ -93,11 +93,11 @@ $grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width=
   }
 }
 
-/* Marks a word the deck added to fill its free slots. */
+/* Marks a word the deck added to fill its free slots, on its first appearance. */
 .tag {
   position: absolute;
   top: 12px;
-  left: 50%;
+  left: 14px;
   padding: 1px 10px;
   border: 2px dashed rgb(43 38 56 / 0.45);
   border-radius: var(--wobble-sm);
@@ -106,7 +106,7 @@ $grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width=
   font-weight: 700;
   letter-spacing: 0.04em;
   white-space: nowrap;
-  transform: translateX(-50%) rotate(-2deg);
+  transform: rotate(-3deg);
 }
 
 .speak {

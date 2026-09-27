@@ -298,7 +298,7 @@ export class LearnPage {
     if (next.finished) void this.finish();
   }
 
-  /** Swipe up on an auto-added word in the first turn: the word goes straight to known and leaves the deck. */
+  /** Swipe up on an auto-added word's first appearance: the word goes straight to known and leaves the deck. */
   protected async onKnown() {
     const s = this.state()!;
     const card = currentCard(s);

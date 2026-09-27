@@ -122,28 +122,42 @@ describe('learning session', () => {
     for (const p of runToEnd(state)) expect(p.shown.map((s) => s.id)).not.toContain(known);
   });
 
-  it('known is only allowed on auto-added learn words, and only in the first turn', () => {
-    const mixed: Deck = { ...deck(0, 8), learn: [word(1, 1, true), word(2, 3, false)] };
+  it('known is only allowed on auto-added learn words, on their first appearance', () => {
+    const mixed: Deck = { ...deck(0, 8), learn: [word(1, 1, true), word(2, 3, false), word(3, 1, true)] };
     let state = startSession(1, mixed, seeded());
-    const cardOnTop = (id: number) => {
-      while (state.queue[0] !== id) state = again(state);
-    };
+    state = { ...state, queue: [2, 100, 1, 3] };
 
-    cardOnTop(1);
-    expect(canMarkKnown(state)).toBe(true);
-    cardOnTop(2);
-    expect(canMarkKnown(state)).toBe(false);
-    cardOnTop(100);
-    expect(canMarkKnown(state)).toBe(false);
-    for (const id of [2, 100]) {
-      cardOnTop(id);
-      expect(markKnown(state)).toBe(state);
-    }
-
-    while (state.turn === 0) state = done(state);
-    cardOnTop(1);
-    expect(canMarkKnown(state)).toBe(false);
+    expect(canMarkKnown(state)).toBe(false); // own word
     expect(markKnown(state)).toBe(state);
+    state = again(state);
+    expect(canMarkKnown(state)).toBe(false); // known review word
+    expect(markKnown(state)).toBe(state);
+    state = again(state);
+    expect(canMarkKnown(state)).toBe(true); // word 1, first appearance
+    state = again(state);
+    expect(canMarkKnown(state)).toBe(true); // word 3, first appearance
+    state = done(state);
+
+    expect(state.queue[2]).toBe(1);
+    state = again(again(state));
+    expect(state.queue[0]).toBe(1);
+    expect(canMarkKnown(state)).toBe(false); // word 1 was swiped right once
+    expect(markKnown(state)).toBe(state);
+    while (state.queue[0] !== 3) state = done(state);
+    expect(canMarkKnown(state)).toBe(false); // word 3 was swiped down once
+  });
+
+  it('a session saved before first appearances were tracked counts every card as seen', () => {
+    const storage = new Map<string, string>();
+    const fake = {
+      getItem: (k: string) => storage.get(k) ?? null,
+      setItem: (k: string, v: string) => void storage.set(k, v),
+    } as unknown as Storage;
+    const old: Partial<SessionState> = startSession(1, deck(2, 8, true), seeded());
+    delete old.seen;
+    fake.setItem('learnwords.session.1', JSON.stringify(old));
+    const loaded = loadSession(1, fake)!;
+    expect(canMarkKnown(loaded)).toBe(false);
   });
 
   it('known on the last card of a pass moves on to the next pass', () => {
