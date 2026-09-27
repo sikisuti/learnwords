@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { getSessionUser, requireAuth } from '../auth/session.ts';
 import type { Db } from '../db/connection.ts';
-import { buildDeck, completeDeck, markKnown, userStats, type Completion } from '../services/deck.ts';
+import { buildDeck, completeDeck, markKnown, randomSessionSize, userStats, type Completion } from '../services/deck.ts';
 
 const idList = { type: 'array', maxItems: 100, uniqueItems: true, items: { type: 'integer', minimum: 1 } };
 
@@ -38,7 +38,7 @@ export function learningRoutes(app: FastifyInstance, db: Db) {
 
   app.post('/sessions', async (request) => {
     const { id, sessionSize, fillWithNewWords } = request.user!;
-    return buildDeck(db, id, { sessionSize, fillWithNewWords });
+    return buildDeck(db, id, { sessionSize: randomSessionSize(sessionSize), fillWithNewWords });
   });
 
   app.post<{ Body: Completion }>(

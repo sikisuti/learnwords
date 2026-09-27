@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildDeck, completeDeck, pickLearnWords, userStats } from '../src/services/deck.ts';
+import { buildDeck, completeDeck, pickLearnWords, randomSessionSize, userStats } from '../src/services/deck.ts';
 import { daysAgo, registerUser, seedUserWord, seedWord, testApp } from './helpers.ts';
 
 const foreigns = (words: { foreign: string }[]) => words.map((w) => w.foreign);
@@ -12,6 +12,21 @@ test('pickLearnWords takes 3 from the top and the rest from the bottom', () => {
   assert.deepEqual(pickLearnWords(list, 2), [0, 1]);
   assert.deepEqual(pickLearnWords(list, 10), [0, 1, 2, 5, 6, 7, 8, 9, 10, 11]);
   assert.deepEqual(pickLearnWords([0, 1, 2, 3], 5), [0, 1, 2, 3]);
+});
+
+test('randomSessionSize varies by 1 up to 5 and by 2 above, never below 1', () => {
+  const range = (configured: number) => {
+    const low = randomSessionSize(configured, () => 0);
+    const high = randomSessionSize(configured, () => 0.999999);
+    const seen = new Set(Array.from({ length: 500 }, () => randomSessionSize(configured)));
+    assert.ok([...seen].every((n) => n >= low && n <= high));
+    return [low, high, seen.size];
+  };
+  assert.deepEqual(range(5), [4, 6, 3]);
+  assert.deepEqual(range(9), [7, 11, 5]);
+  assert.deepEqual(range(6), [4, 8, 5]);
+  assert.deepEqual(range(3), [2, 4, 3]);
+  assert.deepEqual(range(1), [1, 2, 2]);
 });
 
 test('deck: lowest stages first, highest stages last, plus the 8 least recently seen known words', async () => {

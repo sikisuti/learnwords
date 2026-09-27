@@ -42,6 +42,16 @@ export function pickLearnWords<T>(eligibleByStageAsc: T[], size: number): T[] {
   return [...eligibleByStageAsc.slice(0, top), ...(bottom > 0 ? eligibleByStageAsc.slice(-bottom) : [])];
 }
 
+/**
+ * Varies the configured session size so decks are not always the same length:
+ * ±1 for sizes up to 5, ±2 above, both ends inclusive, but never below 1.
+ */
+export function randomSessionSize(configured: number, random = Math.random): number {
+  const spread = configured < 6 ? 1 : 2;
+  const size = configured - spread + Math.floor(random() * (2 * spread + 1));
+  return Math.max(1, size);
+}
+
 export interface DeckOptions {
   sessionSize: number;
   /** fill the slots the user's own due words leave free with dictionary words new to the user */
