@@ -148,6 +148,14 @@ export function completeDeck(db: Db, userId: number, completion: Completion, now
   });
 }
 
+/** Moves a word on the user's list straight to the known stage. Returns false if the word is not on their list. */
+export function markKnown(db: Db, userId: number, wordId: number, now = new Date()): boolean {
+  const result = db
+    .prepare(`UPDATE user_word SET stage = ${KNOWN_STAGE}, last_learned = ? WHERE user_id = ? AND word_id = ?`)
+    .run(now.toISOString(), userId, wordId);
+  return Number(result.changes) > 0;
+}
+
 export interface Stats {
   due: number;
   learning: number;

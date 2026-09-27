@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { getSessionUser, requireAuth } from '../auth/session.ts';
 import type { Db } from '../db/connection.ts';
-import { buildDeck, completeDeck, userStats, type Completion } from '../services/deck.ts';
+import { buildDeck, completeDeck, markKnown, userStats, type Completion } from '../services/deck.ts';
 
 const idList = { type: 'array', maxItems: 100, uniqueItems: true, items: { type: 'integer', minimum: 1 } };
 
@@ -56,5 +56,14 @@ export function learningRoutes(app: FastifyInstance, db: Db) {
     // Normalize issuedAt so it compares correctly with the stored ISO strings.
     async (request) =>
       completeDeck(db, request.user!.id, { ...request.body, issuedAt: new Date(request.body.issuedAt).toISOString() }),
+  );
+
+  app.post<{ Params: { id: number } }>(
+    '/words/:id/known',
+    { schema: { params: { type: 'object', properties: { id: { type: 'integer', minimum: 1 } } } } },
+    async (request, reply) => {
+      if (!markKnown(db, request.user!.id, request.params.id)) return reply.code(404).send({ error: 'Word not found' });
+      return reply.code(204).send();
+    },
   );
 }

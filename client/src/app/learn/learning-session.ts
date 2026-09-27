@@ -8,7 +8,8 @@ import type { Deck, DeckWord } from '../core/models';
  * each card on the side it did not show before. Each turn uses all learn words plus that turn's known word.
  *
  * In a pass the cards form a queue: "again" (swipe right) moves the current card to the back, "done"
- * (swipe down) takes it out for this pass. The pass ends when the queue is empty.
+ * (swipe down) takes it out for this pass. The pass ends when the queue is empty. "Known" (swipe up) takes a
+ * learn word out of the deck for good.
  */
 
 export type Side = 'native' | 'foreign';
@@ -95,9 +96,28 @@ export function again(state: SessionState): SessionState {
 /** Swipe down: take the card out for this pass. Moves on to the next pass when the queue runs out. */
 export function done(state: SessionState, random: Random = Math.random): SessionState {
   if (state.finished || !state.queue.length) return state;
-  const queue = state.queue.slice(1);
-  if (queue.length) return { ...state, queue, step: state.step + 1 };
+  return withQueue(state, state.queue.slice(1), random);
+}
 
+/**
+ * Swipe up on a learn word: it is known now, so it leaves the deck for the rest of the session.
+ * On a known word it only takes the card out for this pass, like `done`.
+ * When no learn words are left, `deckEmpty` is true and the session should end.
+ */
+export function markKnown(state: SessionState, random: Random = Math.random): SessionState {
+  if (state.finished || !state.queue.length) return state;
+  const [id, ...queue] = state.queue;
+  const learn = state.deck.learn.filter((w) => w.id !== id);
+  return withQueue({ ...state, deck: { ...state.deck, learn } }, queue, random);
+}
+
+export function deckEmpty(state: SessionState): boolean {
+  return !state.deck.learn.length;
+}
+
+/** Continues with `queue`, or with the next pass if it is empty. */
+function withQueue(state: SessionState, queue: number[], random: Random): SessionState {
+  if (queue.length) return { ...state, queue, step: state.step + 1 };
   if (state.pass + 1 < passesIn(TURNS[state.turn])) return beginPass(state, state.turn, state.pass + 1, random);
   if (state.turn + 1 < TURNS.length) return beginPass(state, state.turn + 1, 0, random);
   return { ...state, queue, finished: true, step: state.step + 1 };

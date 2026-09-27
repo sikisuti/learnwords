@@ -25,6 +25,7 @@ export class ApiService {
   startSession = () => firstValueFrom(this.http.post<Deck>('/api/sessions', {}));
   completeSession = (body: { issuedAt: string; learnIds: number[]; knownIds: number[] }) =>
     firstValueFrom(this.http.post<{ advanced: number; reviewed: number }>('/api/sessions/complete', body));
+  markKnown = (id: number) => firstValueFrom(this.http.post<void>(`/api/words/${id}/known`, {}));
 }
 
 /** A readable message for a failed request. */

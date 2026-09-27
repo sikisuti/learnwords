@@ -12,8 +12,10 @@ import {
   clearSession,
   completedPasses,
   currentCard,
+  deckEmpty,
   done,
   loadSession,
+  markKnown,
   saveSession,
   startSession,
   turnLabel,
@@ -74,6 +76,7 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
                   [front]="c.side"
                   (again)="onAgain()"
                   (done)="onDone()"
+                  (known)="onKnown()"
                 />
               }
             }
@@ -95,7 +98,7 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
               Auto-play English pronunciation
             </label>
           }
-          <p class="muted hint">Tap to flip · swipe right to repeat · swipe down when you know it</p>
+          <p class="muted hint">Tap to flip · swipe right to repeat · down when you got it · up if you already know it</p>
         }
       }
     </div>
@@ -264,6 +267,7 @@ export class LearnPage {
     if (saved) {
       this.state.set(saved);
       if (saved.finished) await this.finish();
+      else if (deckEmpty(saved)) await this.leaveEmptyDeck();
       else this.view.set('learning');
       return;
     }
@@ -298,6 +302,27 @@ export class LearnPage {
     if (next.finished) void this.finish();
   }
 
+  /** Swipe up: the word goes straight to known and leaves the deck. */
+  protected async onKnown() {
+    const s = this.state()!;
+    const card = currentCard(s);
+    if (!card) return;
+    if (s.deck.learn.some((w) => w.id === card.word.id)) {
+      try {
+        await this.api.markKnown(card.word.id);
+      } catch (err) {
+        // Nothing changed on the server, so keep the word and show it again later.
+        this.toast.show(errorMessage(err, 'Could not mark the word as known.'));
+        this.update(again(s));
+        return;
+      }
+    }
+    const next = markKnown(s);
+    this.update(next);
+    if (next.finished) void this.finish();
+    else if (deckEmpty(next)) await this.leaveEmptyDeck();
+  }
+
   protected toggleAutoPlay(event: Event) {
     const on = (event.target as HTMLInputElement).checked;
     this.speech.setAutoPlay(on);
@@ -314,6 +339,7 @@ export class LearnPage {
       ' ': () => card.flip(),
       ArrowRight: () => card.throw('right'),
       ArrowDown: () => card.throw('down'),
+      ArrowUp: () => card.throw('up'),
     };
     const action = actions[event.key];
     if (action) {
@@ -325,6 +351,13 @@ export class LearnPage {
   private update(state: SessionState) {
     this.state.set(state);
     saveSession(state);
+  }
+
+  /** Every learn word was marked known before the turns ran out: nothing is left to learn in this deck. */
+  private async leaveEmptyDeck() {
+    clearSession(this.userId);
+    this.toast.show('You know every word in this deck now.');
+    await this.router.navigateByUrl('/');
   }
 
   private async finish() {

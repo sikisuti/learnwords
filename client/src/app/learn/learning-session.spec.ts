@@ -5,8 +5,10 @@ import {
   clearSession,
   completedPasses,
   currentCard,
+  deckEmpty,
   done,
   loadSession,
+  markKnown,
   saveSession,
   startSession,
   type SessionState,
@@ -104,6 +106,42 @@ describe('learning session', () => {
     expect(state.turn).toBe(1);
     expect(state.queue.length).toBe(3);
     expect(completedPasses(state)).toBe(1);
+  });
+
+  it('known takes a learn word out of the deck for the rest of the session', () => {
+    let state = startSession(1, deck(3, 8), seeded());
+    const known = state.queue.find((id) => id < 100)!;
+    while (state.queue[0] !== known) state = again(state);
+    state = markKnown(state);
+    expect(state.queue).not.toContain(known);
+    expect(state.deck.learn.map((w) => w.id)).not.toContain(known);
+    expect(deckEmpty(state)).toBe(false);
+    for (const p of runToEnd(state)) expect(p.shown.map((s) => s.id)).not.toContain(known);
+  });
+
+  it('known on a known word only takes it out for this pass', () => {
+    let state = startSession(1, deck(2, 8), seeded());
+    while (state.queue[0] !== 100) state = again(state);
+    state = markKnown(state);
+    expect(state.queue).not.toContain(100);
+    expect(state.deck.known.map((w) => w.id)).toContain(100);
+    expect(state.deck.learn.length).toBe(2);
+  });
+
+  it('known on the last card of a pass moves on to the next pass', () => {
+    let state = startSession(1, deck(2, 8), seeded());
+    state = done(done(state));
+    expect(state.queue.length).toBe(1);
+    state = markKnown(state);
+    expect(state.turn).toBe(1);
+    expect(state.queue.length).toBe(state.deck.learn.length + 1);
+  });
+
+  it('the deck is empty once every learn word is known', () => {
+    let state = startSession(1, deck(2, 8), seeded());
+    while (!deckEmpty(state)) state = state.queue[0] < 100 ? markKnown(state) : done(state);
+    expect(state.finished).toBe(false);
+    expect(state.deck.learn).toEqual([]);
   });
 
   it('gives each shown card a new key, even the same card shown again', () => {

@@ -191,3 +191,19 @@ test('complete endpoint validates input and only touches the caller’s words', 
   });
   assert.equal(invalid.statusCode, 400);
 });
+
+test('known endpoint moves one of the caller’s words straight to stage 6', async () => {
+  const { app, db } = await testApp();
+  const alice = await registerUser(app, 'alice');
+  const bob = await registerUser(app, 'bob');
+  const word = seedUserWord(db, alice.id, 'w', 2, daysAgo(10));
+  const bobsWord = seedUserWord(db, bob.id, 'b', 1, daysAgo(1));
+
+  const res = await app.inject({ method: 'POST', url: `/api/words/${word}/known`, headers: alice.headers });
+  assert.equal(res.statusCode, 204);
+  assert.deepEqual({ ...userStats(db, alice.id) }, { due: 0, learning: 0, known: 1 });
+
+  const other = await app.inject({ method: 'POST', url: `/api/words/${bobsWord}/known`, headers: alice.headers });
+  assert.equal(other.statusCode, 404);
+  assert.deepEqual({ ...userStats(db, bob.id) }, { due: 1, learning: 1, known: 0 });
+});

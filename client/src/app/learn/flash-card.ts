@@ -4,7 +4,7 @@ import type { DeckWord } from '../core/models';
 import { SpeechService } from '../core/speech.service';
 import type { Side } from './learning-session';
 
-type Exit = 'right' | 'down';
+type Exit = 'right' | 'down' | 'up';
 
 const TAP_DISTANCE = 10;
 const TAP_TIME_MS = 400;
@@ -12,9 +12,20 @@ const SWIPE_DISTANCE = 90;
 const SWIPE_VELOCITY = 0.5; // px per ms
 const EXIT_MS = 220;
 
+/** The direction a drag leans towards most, or null if it goes left (not a gesture). */
+function leaning(dx: number, dy: number): { direction: Exit; distance: number } | null {
+  const options: { direction: Exit; distance: number }[] = [
+    { direction: 'right', distance: dx },
+    { direction: 'down', distance: dy },
+    { direction: 'up', distance: -dy },
+  ];
+  const best = options.reduce((a, b) => (b.distance > a.distance ? b : a));
+  return best.distance > 0 ? best : null;
+}
+
 /**
- * A two-sided card. Tap flips it; drag right ("again") or down ("done") throws it off the deck.
- * The parent listens to `again` / `done`, which fire after the throw animation has finished.
+ * A two-sided card. Tap flips it; drag right ("again"), down ("done") or up ("known") throws it off the deck.
+ * The parent listens to `again` / `done` / `known`, which fire after the throw animation has finished.
  * The speaker button reads the foreign word aloud; with auto-play on, it is read whenever the foreign side shows.
  */
 @Component({
@@ -37,6 +48,7 @@ const EXIT_MS = 220;
     >
       <div class="hint again" [style.opacity]="hintOpacity().again">Again</div>
       <div class="hint done" [style.opacity]="hintOpacity().done">Done</div>
+      <div class="hint known" [style.opacity]="hintOpacity().up">Known</div>
       <div class="inner" [class.flipped]="flipped()">
         <section class="sketch-twice face front">
           <ng-container *ngTemplateOutlet="face; context: { text: textOf(front()) }" />
@@ -75,6 +87,7 @@ export class FlashCard implements OnInit {
 
   readonly again = output<void>();
   readonly done = output<void>();
+  readonly known = output<void>();
 
   protected readonly speech = inject(SpeechService);
   protected readonly exitMs = EXIT_MS;
@@ -96,18 +109,16 @@ export class FlashCard implements OnInit {
     const exit = this.exit();
     if (exit === 'right') return `translate(130vw, ${this.dy()}px) rotate(30deg)`;
     if (exit === 'down') return `translate(${this.dx()}px, 110vh)`;
+    if (exit === 'up') return `translate(${this.dx()}px, -110vh)`;
     const dx = this.dx();
     const dy = this.dy();
     return dx || dy ? `translate(${dx}px, ${dy}px) rotate(${dx / 18}deg)` : '';
   });
 
   protected readonly hintOpacity = computed(() => {
-    const dx = Math.max(0, this.dx());
-    const dy = Math.max(0, this.dy());
-    return {
-      again: dx > dy ? Math.min(1, dx / SWIPE_DISTANCE) : 0,
-      done: dy >= dx ? Math.min(1, dy / SWIPE_DISTANCE) : 0,
-    };
+    const lean = leaning(this.dx(), this.dy());
+    const opacity = (direction: Exit) => (lean?.direction === direction ? Math.min(1, lean.distance / SWIPE_DISTANCE) : 0);
+    return { again: opacity('right'), done: opacity('down'), up: opacity('up') };
   });
 
   protected textOf(side: Side) {
@@ -138,7 +149,8 @@ export class FlashCard implements OnInit {
   throw(direction: Exit) {
     if (this.exit()) return;
     this.exit.set(direction);
-    setTimeout(() => (direction === 'right' ? this.again.emit() : this.done.emit()), EXIT_MS);
+    const emitter = { right: this.again, down: this.done, up: this.known }[direction];
+    setTimeout(() => emitter.emit(), EXIT_MS);
   }
 
   protected onPointerDown(event: PointerEvent) {
@@ -151,9 +163,7 @@ export class FlashCard implements OnInit {
   protected onPointerMove(event: PointerEvent) {
     if (!this.start || event.pointerId !== this.start.id) return;
     this.dx.set(event.clientX - this.start.x);
-    // Dragging up is not a gesture; resist it so the card does not fly off the top.
-    const dy = event.clientY - this.start.y;
-    this.dy.set(dy < 0 ? dy / 4 : dy);
+    this.dy.set(event.clientY - this.start.y);
   }
 
   protected onPointerUp(event: PointerEvent) {
@@ -171,8 +181,8 @@ export class FlashCard implements OnInit {
       return;
     }
     const fast = distance / elapsed > SWIPE_VELOCITY;
-    if (dx > dy && (dx > SWIPE_DISTANCE || (fast && dx > 30))) this.throw('right');
-    else if (dy >= dx && (dy > SWIPE_DISTANCE || (fast && dy > 30))) this.throw('down');
+    const lean = leaning(dx, dy);
+    if (lean && (lean.distance > SWIPE_DISTANCE || (fast && lean.distance > 30))) this.throw(lean.direction);
     else this.reset();
   }
 
@@ -189,6 +199,7 @@ export class FlashCard implements OnInit {
       Enter: () => this.flip(),
       ArrowRight: () => this.throw('right'),
       ArrowDown: () => this.throw('down'),
+      ArrowUp: () => this.throw('up'),
     };
     const action = actions[event.key];
     if (action) {
