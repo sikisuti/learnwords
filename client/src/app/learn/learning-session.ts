@@ -8,8 +8,8 @@ import type { Deck, DeckWord } from '../core/models';
  * each card on the side it did not show before. Each turn uses all learn words plus that turn's known word.
  *
  * In a pass the cards form a queue: "again" (swipe right) moves the current card to the back, "done"
- * (swipe down) takes it out for this pass. The pass ends when the queue is empty. "Known" (swipe up) takes a
- * learn word out of the deck for good.
+ * (swipe down) takes it out for this pass. The pass ends when the queue is empty. "Known" (swipe up) takes an
+ * auto-added learn word out of the deck for good; it is only offered in the first turn (see `canMarkKnown`).
  */
 
 export type Side = 'native' | 'foreign';
@@ -100,12 +100,22 @@ export function done(state: SessionState, random: Random = Math.random): Session
 }
 
 /**
- * Swipe up on a learn word: it is known now, so it leaves the deck for the rest of the session.
- * On a known word it only takes the card out for this pass, like `done`.
+ * Whether the card on top may be swiped up as known: only an auto-added learn word, and only in the first turn,
+ * so a word the deck picked for the user can be skipped before any time goes into learning it.
+ */
+export function canMarkKnown(state: SessionState): boolean {
+  if (state.finished || state.turn !== 0 || !state.queue.length) return false;
+  const id = state.queue[0];
+  return state.deck.learn.some((w) => w.id === id && w.autoAdded);
+}
+
+/**
+ * Swipe up on an auto-added learn word in the first turn: it is known now, so it leaves the deck for the rest of
+ * the session. Does nothing when `canMarkKnown` is false.
  * When no learn words are left, `deckEmpty` is true and the session should end.
  */
 export function markKnown(state: SessionState, random: Random = Math.random): SessionState {
-  if (state.finished || !state.queue.length) return state;
+  if (!canMarkKnown(state)) return state;
   const [id, ...queue] = state.queue;
   const learn = state.deck.learn.filter((w) => w.id !== id);
   return withQueue({ ...state, deck: { ...state.deck, learn } }, queue, random);

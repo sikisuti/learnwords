@@ -25,6 +25,7 @@ function leaning(dx: number, dy: number): { direction: Exit; distance: number } 
 
 /**
  * A two-sided card. Tap flips it; drag right ("again"), down ("done") or up ("known") throws it off the deck.
+ * Up only works while `canMarkKnown` is true; otherwise an upward drag springs back.
  * The parent listens to `again` / `done` / `known`, which fire after the throw animation has finished.
  * The speaker button reads the foreign word aloud; with auto-play on, it is read whenever the foreign side shows.
  */
@@ -44,7 +45,7 @@ function leaning(dx: number, dy: number): { direction: Exit; distance: number } 
       (keydown)="onKey($event)"
       tabindex="0"
       role="button"
-      [attr.aria-label]="textOf(flipped() ? back() : front()) + '. Tap to flip.'"
+      [attr.aria-label]="(word().autoAdded ? 'Auto-added. ' : '') + textOf(flipped() ? back() : front()) + '. Tap to flip.'"
     >
       <div class="hint again" [style.opacity]="hintOpacity().again">Again</div>
       <div class="hint done" [style.opacity]="hintOpacity().done">Done</div>
@@ -75,6 +76,9 @@ function leaning(dx: number, dy: number): { direction: Exit; distance: number } 
     </div>
 
     <ng-template #face let-text="text">
+      @if (word().autoAdded) {
+        <span class="tag" aria-hidden="true">auto-added</span>
+      }
       <div class="text" [class.long]="text.length > 40">{{ text }}</div>
     </ng-template>
   `,
@@ -84,6 +88,8 @@ function leaning(dx: number, dy: number): { direction: Exit; distance: number } 
 export class FlashCard implements OnInit {
   readonly word = input.required<DeckWord>();
   readonly front = input.required<Side>();
+  /** whether swiping up ("known") is allowed for this card */
+  readonly canMarkKnown = input(false);
 
   readonly again = output<void>();
   readonly done = output<void>();
@@ -118,7 +124,7 @@ export class FlashCard implements OnInit {
   protected readonly hintOpacity = computed(() => {
     const lean = leaning(this.dx(), this.dy());
     const opacity = (direction: Exit) => (lean?.direction === direction ? Math.min(1, lean.distance / SWIPE_DISTANCE) : 0);
-    return { again: opacity('right'), done: opacity('down'), up: opacity('up') };
+    return { again: opacity('right'), done: opacity('down'), up: this.canMarkKnown() ? opacity('up') : 0 };
   });
 
   protected textOf(side: Side) {
@@ -147,7 +153,7 @@ export class FlashCard implements OnInit {
 
   /** Throws the card off the deck, then emits the matching output. */
   throw(direction: Exit) {
-    if (this.exit()) return;
+    if (this.exit() || (direction === 'up' && !this.canMarkKnown())) return;
     this.exit.set(direction);
     const emitter = { right: this.again, down: this.done, up: this.known }[direction];
     setTimeout(() => emitter.emit(), EXIT_MS);
@@ -182,7 +188,8 @@ export class FlashCard implements OnInit {
     }
     const fast = distance / elapsed > SWIPE_VELOCITY;
     const lean = leaning(dx, dy);
-    if (lean && (lean.distance > SWIPE_DISTANCE || (fast && lean.distance > 30))) this.throw(lean.direction);
+    const swiped = lean && (lean.distance > SWIPE_DISTANCE || (fast && lean.distance > 30));
+    if (swiped && (lean.direction !== 'up' || this.canMarkKnown())) this.throw(lean.direction);
     else this.reset();
   }
 

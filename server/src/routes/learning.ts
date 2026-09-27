@@ -62,7 +62,11 @@ export function learningRoutes(app: FastifyInstance, db: Db) {
     '/words/:id/known',
     { schema: { params: { type: 'object', properties: { id: { type: 'integer', minimum: 1 } } } } },
     async (request, reply) => {
-      if (!markKnown(db, request.user!.id, request.params.id)) return reply.code(404).send({ error: 'Word not found' });
+      const result = markKnown(db, request.user!.id, request.params.id);
+      if (result === 'not-found') return reply.code(404).send({ error: 'Word not found' });
+      if (result === 'not-auto-added') {
+        return reply.code(409).send({ error: 'Only auto-added words can be marked as known' });
+      }
       return reply.code(204).send();
     },
   );

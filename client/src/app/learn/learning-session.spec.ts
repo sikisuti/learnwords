@@ -2,6 +2,7 @@ import type { Deck, DeckWord } from '../core/models';
 import {
   TOTAL_PASSES,
   again,
+  canMarkKnown,
   clearSession,
   completedPasses,
   currentCard,
@@ -14,7 +15,7 @@ import {
   type SessionState,
 } from './learning-session';
 
-const word = (id: number, stage: number): DeckWord => ({
+const word = (id: number, stage: number, autoAdded = false): DeckWord => ({
   id,
   native: `n${id}`,
   foreign: `f${id}`,
@@ -24,11 +25,13 @@ const word = (id: number, stage: number): DeckWord => ({
   level: '?',
   lexicalCategory: null,
   stage,
+  autoAdded,
 });
 
-const deck = (learn: number, known: number): Deck => ({
+/** Learn words have ids from 1, known words from 100. With `autoAdded`, every learn word was added by the deck. */
+const deck = (learn: number, known: number, autoAdded = false): Deck => ({
   issuedAt: '2026-06-01T12:00:00.000Z',
-  learn: Array.from({ length: learn }, (_, i) => word(i + 1, 1)),
+  learn: Array.from({ length: learn }, (_, i) => word(i + 1, 1, autoAdded)),
   known: Array.from({ length: known }, (_, i) => word(100 + i, 6)),
 });
 
@@ -108,8 +111,8 @@ describe('learning session', () => {
     expect(completedPasses(state)).toBe(1);
   });
 
-  it('known takes a learn word out of the deck for the rest of the session', () => {
-    let state = startSession(1, deck(3, 8), seeded());
+  it('known takes an auto-added learn word out of the deck for the rest of the session', () => {
+    let state = startSession(1, deck(3, 8, true), seeded());
     const known = state.queue.find((id) => id < 100)!;
     while (state.queue[0] !== known) state = again(state);
     state = markKnown(state);
@@ -119,17 +122,32 @@ describe('learning session', () => {
     for (const p of runToEnd(state)) expect(p.shown.map((s) => s.id)).not.toContain(known);
   });
 
-  it('known on a known word only takes it out for this pass', () => {
-    let state = startSession(1, deck(2, 8), seeded());
-    while (state.queue[0] !== 100) state = again(state);
-    state = markKnown(state);
-    expect(state.queue).not.toContain(100);
-    expect(state.deck.known.map((w) => w.id)).toContain(100);
-    expect(state.deck.learn.length).toBe(2);
+  it('known is only allowed on auto-added learn words, and only in the first turn', () => {
+    const mixed: Deck = { ...deck(0, 8), learn: [word(1, 1, true), word(2, 3, false)] };
+    let state = startSession(1, mixed, seeded());
+    const cardOnTop = (id: number) => {
+      while (state.queue[0] !== id) state = again(state);
+    };
+
+    cardOnTop(1);
+    expect(canMarkKnown(state)).toBe(true);
+    cardOnTop(2);
+    expect(canMarkKnown(state)).toBe(false);
+    cardOnTop(100);
+    expect(canMarkKnown(state)).toBe(false);
+    for (const id of [2, 100]) {
+      cardOnTop(id);
+      expect(markKnown(state)).toBe(state);
+    }
+
+    while (state.turn === 0) state = done(state);
+    cardOnTop(1);
+    expect(canMarkKnown(state)).toBe(false);
+    expect(markKnown(state)).toBe(state);
   });
 
   it('known on the last card of a pass moves on to the next pass', () => {
-    let state = startSession(1, deck(2, 8), seeded());
+    let state = startSession(1, deck(2, 8, true), seeded());
     state = done(done(state));
     expect(state.queue.length).toBe(1);
     state = markKnown(state);
@@ -138,7 +156,7 @@ describe('learning session', () => {
   });
 
   it('the deck is empty once every learn word is known', () => {
-    let state = startSession(1, deck(2, 8), seeded());
+    let state = startSession(1, deck(2, 8, true), seeded());
     while (!deckEmpty(state)) state = state.queue[0] < 100 ? markKnown(state) : done(state);
     expect(state.finished).toBe(false);
     expect(state.deck.learn).toEqual([]);

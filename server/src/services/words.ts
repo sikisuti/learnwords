@@ -85,14 +85,17 @@ function insertWord(db: Db, input: WordInput, now: Date): number {
   return Number(result.lastInsertRowid);
 }
 
-/** Puts the word on the user's list at stage 1, or resets it to stage 1 if already there. Returns the previous stage. */
+/**
+ * Puts the word on the user's list at stage 1, or resets it to stage 1 if already there; either way the user chose
+ * it, so it is no longer auto-added. Returns the previous stage.
+ */
 function linkToUser(db: Db, userId: number, wordId: number, now: Date): number | null {
   const previous = db.prepare('SELECT stage FROM user_word WHERE user_id = ? AND word_id = ?').get(userId, wordId) as
     | { stage: number }
     | undefined;
   db.prepare(
     `INSERT INTO user_word (user_id, word_id, stage, last_learned) VALUES (?, ?, 1, ?)
-     ON CONFLICT (user_id, word_id) DO UPDATE SET stage = 1, last_learned = excluded.last_learned`,
+     ON CONFLICT (user_id, word_id) DO UPDATE SET stage = 1, last_learned = excluded.last_learned, auto_added = 0`,
   ).run(userId, wordId, now.toISOString());
   return previous?.stage ?? null;
 }

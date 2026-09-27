@@ -109,7 +109,10 @@ test('when one pending migration fails, none of them are applied', () => {
   const good: Migration = { name: 'add a table', up: 'CREATE TABLE note (id INTEGER PRIMARY KEY)' };
   const bad: Migration = { name: 'typo', up: 'ALTER TABLE nope ADD COLUMN x TEXT' };
 
-  assert.throws(() => migrate(db, [...migrations, good, bad]), /Migration 4 \(typo\) failed: no such table: nope/);
+  assert.throws(
+    () => migrate(db, [...migrations, good, bad]),
+    new RegExp(String.raw`Migration ${migrations.length + 2} \(typo\) failed: no such table: nope`),
+  );
   assert.equal(schemaVersion(db), migrations.length);
   assert.ok(!tableExists(db, 'note'));
   assert.equal((db.prepare('PRAGMA foreign_keys').get() as { foreign_keys: number }).foreign_keys, 1);
@@ -127,5 +130,8 @@ test('a migration that breaks foreign key references is rolled back', () => {
 test('a database newer than the build is refused', () => {
   const db = populated();
   db.exec(`PRAGMA user_version = ${migrations.length + 1}`);
-  assert.throws(() => migrate(db), /schema is at version 3, but this build only knows 2 migrations/);
+  assert.throws(
+    () => migrate(db),
+    new RegExp(`schema is at version ${migrations.length + 1}, but this build only knows ${migrations.length} migrations`),
+  );
 });

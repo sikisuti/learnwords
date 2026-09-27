@@ -80,4 +80,10 @@ export const migrations: Migration[] = [
   ALTER TABLE user DROP COLUMN session_size;
   `,
   },
+  {
+    name: 'mark words a deck added to fill free slots',
+    up: `
+  ALTER TABLE user_word ADD COLUMN auto_added INTEGER NOT NULL DEFAULT 0 CHECK (auto_added IN (0, 1));
+  `,
+  },
 ];

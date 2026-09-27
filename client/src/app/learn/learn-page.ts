@@ -9,6 +9,7 @@ import {
   TOTAL_PASSES,
   TURNS,
   again,
+  canMarkKnown,
   clearSession,
   completedPasses,
   currentCard,
@@ -74,6 +75,7 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
                 <app-flash-card
                   [word]="c.word"
                   [front]="c.side"
+                  [canMarkKnown]="knownAllowed()"
                   (again)="onAgain()"
                   (done)="onDone()"
                   (known)="onKnown()"
@@ -89,8 +91,12 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
               Auto-play English pronunciation
             </label>
           }
-          <p class="muted hint touch">Tap to flip · swipe right to repeat · down when you got it · up if you already know it</p>
-          <p class="muted hint keys">Space to flip · → to repeat · ↓ when you got it · ↑ if you already know it</p>
+          <p class="muted hint touch">
+            Tap to flip · swipe right to repeat · down when you got it{{ knownAllowed() ? ' · up if you already know it' : '' }}
+          </p>
+          <p class="muted hint keys">
+            Space to flip · → to repeat · ↓ when you got it{{ knownAllowed() ? ' · ↑ if you already know it' : '' }}
+          </p>
         }
       }
     </div>
@@ -223,6 +229,10 @@ export class LearnPage {
     const s = this.state();
     return s ? currentCard(s) : null;
   });
+  protected readonly knownAllowed = computed(() => {
+    const s = this.state();
+    return s ? canMarkKnown(s) : false;
+  });
   protected readonly label = computed(() => {
     const s = this.state();
     return s ? turnLabel(s) : '';
@@ -288,20 +298,18 @@ export class LearnPage {
     if (next.finished) void this.finish();
   }
 
-  /** Swipe up: the word goes straight to known and leaves the deck. */
+  /** Swipe up on an auto-added word in the first turn: the word goes straight to known and leaves the deck. */
   protected async onKnown() {
     const s = this.state()!;
     const card = currentCard(s);
-    if (!card) return;
-    if (s.deck.learn.some((w) => w.id === card.word.id)) {
-      try {
-        await this.api.markKnown(card.word.id);
-      } catch (err) {
-        // Nothing changed on the server, so keep the word and show it again later.
-        this.toast.show(errorMessage(err, 'Could not mark the word as known.'));
-        this.update(again(s));
-        return;
-      }
+    if (!card || !canMarkKnown(s)) return;
+    try {
+      await this.api.markKnown(card.word.id);
+    } catch (err) {
+      // Nothing changed on the server, so keep the word and show it again later.
+      this.toast.show(errorMessage(err, 'Could not mark the word as known.'));
+      this.update(again(s));
+      return;
     }
     const next = markKnown(s);
     this.update(next);

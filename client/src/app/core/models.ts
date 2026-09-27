@@ -47,6 +47,8 @@ export interface AddResult {
 
 export interface DeckWord extends Word {
   stage: number;
+  /** put on the user's list by a deck filling its free slots, not by the user */
+  autoAdded: boolean;
 }
 
 export interface Deck {

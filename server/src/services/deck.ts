@@ -25,7 +25,18 @@ const DUE_CONDITION = `(uw.stage = 1 OR ${Object.entries(STAGE_WAIT)
 
 export interface DeckWord extends Word {
   stage: number;
+  /** the word was put on the user's list by a deck filling its free slots, not by the user */
+  autoAdded: boolean;
 }
+
+/** SELECT list producing a DeckWord (with auto_added still 0/1) from `user_word uw JOIN word w JOIN level l`. */
+const DECK_WORD_COLUMNS = `${WORD_COLUMNS}, uw.stage, uw.auto_added AS autoAdded`;
+
+const toDeckWords = (rows: unknown[]): DeckWord[] =>
+  (rows as (Omit<DeckWord, 'autoAdded'> & { autoAdded: number })[]).map((row) => ({
+    ...row,
+    autoAdded: row.autoAdded === 1,
+  }));
 
 export interface Deck {
   /** ISO timestamp; completing the deck only updates words not learned since then */
@@ -59,23 +70,25 @@ export interface DeckOptions {
 }
 
 /**
- * Links up to `count` dictionary words the user does not have yet to them at stage 1, easiest level first
- * (A1, A2, … C2, then unlevelled), in dictionary order within a level.
+ * Links up to `count` dictionary words the user does not have yet to them at stage 1, marked auto-added,
+ * easiest level first (A1, A2, … C2, then unlevelled), in dictionary order within a level.
  */
 function joinNewWords(db: Db, userId: number, count: number, joinedAt: string): DeckWord[] {
   const words = db
     .prepare(
-      `SELECT ${WORD_COLUMNS}, 1 AS stage
+      `SELECT ${WORD_COLUMNS}, 1 AS stage, true AS autoAdded
          FROM word w
          JOIN level l ON l.id = w.level_id
         WHERE NOT EXISTS (SELECT 1 FROM user_word uw WHERE uw.user_id = $user AND uw.word_id = w.id)
         ORDER BY w.level_id ASC, w.id ASC
         LIMIT $count`,
     )
-    .all({ user: userId, count }) as unknown as DeckWord[];
-  const link = db.prepare('INSERT INTO user_word (user_id, word_id, stage, last_learned) VALUES (?, ?, 1, ?)');
-  for (const word of words) link.run(userId, word.id, joinedAt);
-  return words;
+    .all({ user: userId, count });
+  const link = db.prepare(
+    'INSERT INTO user_word (user_id, word_id, stage, last_learned, auto_added) VALUES (?, ?, 1, ?, 1)',
+  );
+  for (const word of words) link.run(userId, word.id as number, joinedAt);
+  return toDeckWords(words);
 }
 
 export function buildDeck(db: Db, userId: number, { sessionSize, fillWithNewWords = false }: DeckOptions, now = new Date()): Deck {
@@ -91,18 +104,18 @@ function selectDeck(db: Db, userId: number, sessionSize: number, now: Date): Dec
   const nowIso = now.toISOString();
   const eligible = db
     .prepare(
-      `SELECT ${WORD_COLUMNS}, uw.stage
+      `SELECT ${DECK_WORD_COLUMNS}
          FROM user_word uw
          JOIN word w ON w.id = uw.word_id
          JOIN level l ON l.id = w.level_id
         WHERE uw.user_id = $user AND uw.stage < ${KNOWN_STAGE} AND ${DUE_CONDITION}
         ORDER BY uw.stage ASC, uw.last_learned ASC, w.id ASC`,
     )
-    .all({ user: userId, now: nowIso }) as unknown as DeckWord[];
+    .all({ user: userId, now: nowIso });
 
   const known = db
     .prepare(
-      `SELECT ${WORD_COLUMNS}, uw.stage
+      `SELECT ${DECK_WORD_COLUMNS}
          FROM user_word uw
          JOIN word w ON w.id = uw.word_id
          JOIN level l ON l.id = w.level_id
@@ -110,9 +123,9 @@ function selectDeck(db: Db, userId: number, sessionSize: number, now: Date): Dec
         ORDER BY uw.last_learned ASC, w.id ASC
         LIMIT ${KNOWN_WORDS_PER_DECK}`,
     )
-    .all({ user: userId }) as unknown as DeckWord[];
+    .all({ user: userId });
 
-  return { issuedAt: nowIso, learn: pickLearnWords(eligible, sessionSize), known };
+  return { issuedAt: nowIso, learn: pickLearnWords(toDeckWords(eligible), sessionSize), known: toDeckWords(known) };
 }
 
 export interface Completion {
@@ -158,12 +171,24 @@ export function completeDeck(db: Db, userId: number, completion: Completion, now
   });
 }
 
-/** Moves a word on the user's list straight to the known stage. Returns false if the word is not on their list. */
-export function markKnown(db: Db, userId: number, wordId: number, now = new Date()): boolean {
-  const result = db
-    .prepare(`UPDATE user_word SET stage = ${KNOWN_STAGE}, last_learned = ? WHERE user_id = ? AND word_id = ?`)
-    .run(now.toISOString(), userId, wordId);
-  return Number(result.changes) > 0;
+/**
+ * Moves an auto-added word on the user's list straight to the known stage. Words the user added themselves
+ * have to be learned through the stages.
+ */
+export function markKnown(db: Db, userId: number, wordId: number, now = new Date()): 'ok' | 'not-found' | 'not-auto-added' {
+  return transaction(db, () => {
+    const row = db.prepare('SELECT auto_added FROM user_word WHERE user_id = ? AND word_id = ?').get(userId, wordId) as
+      | { auto_added: number }
+      | undefined;
+    if (!row) return 'not-found';
+    if (!row.auto_added) return 'not-auto-added';
+    db.prepare(`UPDATE user_word SET stage = ${KNOWN_STAGE}, last_learned = ? WHERE user_id = ? AND word_id = ?`).run(
+      now.toISOString(),
+      userId,
+      wordId,
+    );
+    return 'ok';
+  });
 }
 
 export interface Stats {

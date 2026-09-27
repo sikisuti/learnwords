@@ -106,11 +106,16 @@ test('with filling on, free slots get new dictionary words, easiest level first,
   const deck = buildDeck(db, id, { sessionSize: 5, fillWithNewWords: true }, now);
   assert.deepEqual(foreigns(deck.learn), ['own-due', 'a1-first', 'bobs-a1', 'a2-first', 'a2-second']);
   assert.ok(deck.learn.every((w) => w.stage === 1));
+  assert.deepEqual(
+    deck.learn.map((w) => w.autoAdded),
+    [false, true, true, true, true],
+  );
+  assert.equal(deck.known[0].autoAdded, false);
   assert.deepEqual(foreigns(deck.known), ['own-known']);
 
   const linked = db
     .prepare(
-      `SELECT w."foreign" AS "foreign", uw.stage, uw.last_learned AS at
+      `SELECT w."foreign" AS "foreign", uw.stage, uw.last_learned AS at, uw.auto_added AS auto
          FROM user_word uw JOIN word w ON w.id = uw.word_id
         WHERE uw.user_id = ? ORDER BY w.id`,
     )
@@ -119,10 +124,14 @@ test('with filling on, free slots get new dictionary words, easiest level first,
   for (const name of ['a1-first', 'bobs-a1', 'a2-first', 'a2-second']) {
     assert.deepEqual(
       linked.find((r) => r.foreign === name),
-      { foreign: name, stage: 1, at: now.toISOString() },
+      { foreign: name, stage: 1, at: now.toISOString(), auto: 1 },
     );
   }
   assert.equal(linked.length, 7, 'b1, c2 and unlevelled words stay unlinked');
+
+  // Auto-added words stay marked in later decks.
+  const later = buildDeck(db, id, { sessionSize: 5 }, now);
+  assert.ok(later.learn.filter((w) => w.foreign !== 'own-due').every((w) => w.autoAdded));
 
   // The joined words advance when the deck is completed.
   const done = new Date('2026-06-01T12:20:00.000Z');
@@ -207,18 +216,38 @@ test('complete endpoint validates input and only touches the caller’s words', 
   assert.equal(invalid.statusCode, 400);
 });
 
-test('known endpoint moves one of the caller’s words straight to stage 6', async () => {
+test('known endpoint moves one of the caller’s auto-added words straight to stage 6', async () => {
   const { app, db } = await testApp();
   const alice = await registerUser(app, 'alice');
   const bob = await registerUser(app, 'bob');
-  const word = seedUserWord(db, alice.id, 'w', 2, daysAgo(10));
-  const bobsWord = seedUserWord(db, bob.id, 'b', 1, daysAgo(1));
+  const word = seedUserWord(db, alice.id, 'w', 1, daysAgo(1), true);
+  const own = seedUserWord(db, alice.id, 'own', 2, daysAgo(10));
+  const bobsWord = seedUserWord(db, bob.id, 'b', 1, daysAgo(1), true);
 
   const res = await app.inject({ method: 'POST', url: `/api/words/${word}/known`, headers: alice.headers });
   assert.equal(res.statusCode, 204);
-  assert.deepEqual({ ...userStats(db, alice.id) }, { due: 0, learning: 0, known: 1 });
+  assert.deepEqual({ ...userStats(db, alice.id) }, { due: 1, learning: 1, known: 1 });
+
+  const notAuto = await app.inject({ method: 'POST', url: `/api/words/${own}/known`, headers: alice.headers });
+  assert.equal(notAuto.statusCode, 409);
+  assert.deepEqual({ ...userStats(db, alice.id) }, { due: 1, learning: 1, known: 1 });
 
   const other = await app.inject({ method: 'POST', url: `/api/words/${bobsWord}/known`, headers: alice.headers });
   assert.equal(other.statusCode, 404);
   assert.deepEqual({ ...userStats(db, bob.id) }, { due: 1, learning: 1, known: 0 });
+});
+
+test('adding an auto-added word yourself clears the mark', async () => {
+  const { app, db } = await testApp();
+  const alice = await registerUser(app, 'alice');
+  const word = seedUserWord(db, alice.id, 'w', 3, daysAgo(10), true);
+
+  const res = await app.inject({ method: 'POST', url: `/api/words/${word}/learn`, headers: alice.headers });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual({ ...db.prepare('SELECT stage, auto_added FROM user_word WHERE word_id = ?').get(word) }, {
+    stage: 1,
+    auto_added: 0,
+  });
+  const known = await app.inject({ method: 'POST', url: `/api/words/${word}/known`, headers: alice.headers });
+  assert.equal(known.statusCode, 409);
 });
