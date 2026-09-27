@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { hashPassword, verifyPassword } from '../auth/password.ts';
-import { SESSION_COOKIE, createSession, deleteSession, requireAuth, type SessionUser } from '../auth/session.ts';
-import type { Db } from '../db/connection.ts';
+import { SESSION_COOKIE, createSession, deleteSession, getSessionUser, requireAuth } from '../auth/session.ts';
+import { transaction, type Db } from '../db/connection.ts';
 
 interface Credentials {
   username: string;
@@ -42,23 +42,27 @@ export function authRoutes(app: FastifyInstance, db: Db, cookieSecure: boolean) 
       return reply.code(409).send({ error: 'This username is already taken' });
     }
     const hash = await hashPassword(password);
-    const result = db
-      .prepare('INSERT INTO user (username, password_hash, created_at) VALUES (?, ?, ?)')
-      .run(username, hash, new Date().toISOString());
-    const id = Number(result.lastInsertRowid);
+    const id = transaction(db, () => {
+      const result = db
+        .prepare('INSERT INTO user (username, password_hash, created_at) VALUES (?, ?, ?)')
+        .run(username, hash, new Date().toISOString());
+      const userId = Number(result.lastInsertRowid);
+      db.prepare('INSERT INTO user_configuration (user_id) VALUES (?)').run(userId);
+      return userId;
+    });
     startSession(reply, id);
-    return reply.code(201).send({ id, username, sessionSize: 5 } satisfies SessionUser);
+    return reply.code(201).send(getSessionUser(db, id));
   });
 
   app.post<{ Body: Credentials }>('/auth/login', { schema: credentialsSchema, ...rateLimit }, async (request, reply) => {
     const { username, password } = request.body;
-    const row = db
-      .prepare('SELECT id, username, password_hash AS hash, session_size AS sessionSize FROM user WHERE username = ?')
-      .get(username) as (SessionUser & { hash: string }) | undefined;
+    const row = db.prepare('SELECT id, password_hash AS hash FROM user WHERE username = ?').get(username) as
+      | { id: number; hash: string }
+      | undefined;
     const ok = await verifyPassword(password, row?.hash ?? (await dummyHash));
     if (!row || !ok) return reply.code(401).send({ error: 'Wrong username or password' });
     startSession(reply, row.id);
-    return { id: row.id, username: row.username, sessionSize: row.sessionSize } satisfies SessionUser;
+    return getSessionUser(db, row.id);
   });
 
   app.post('/auth/logout', async (request, reply) => {

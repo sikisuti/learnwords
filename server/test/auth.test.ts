@@ -7,7 +7,7 @@ test('register logs the user in and /auth/me returns them', async () => {
   const { headers } = await registerUser(app, 'alice');
   const me = await app.inject({ method: 'GET', url: '/api/auth/me', headers });
   assert.equal(me.statusCode, 200);
-  assert.deepEqual(me.json(), { id: 1, username: 'alice', sessionSize: 5 });
+  assert.deepEqual(me.json(), { id: 1, username: 'alice', sessionSize: 5, fillWithNewWords: false });
 });
 
 test('duplicate usernames are rejected case-insensitively', async () => {
@@ -79,13 +79,30 @@ test('protected routes need a session, and logout ends it', async () => {
   assert.equal(me.statusCode, 401);
 });
 
-test('session size can be changed within limits', async () => {
+test('settings can be changed within limits', async () => {
   const { app } = await testApp();
   const { headers } = await registerUser(app);
-  const ok = await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { sessionSize: 10 } });
-  assert.equal(ok.json().sessionSize, 10);
+  const ok = await app.inject({
+    method: 'PATCH',
+    url: '/api/settings',
+    headers,
+    payload: { sessionSize: 10, fillWithNewWords: true },
+  });
+  assert.deepEqual(ok.json(), { id: 1, username: 'alice', sessionSize: 10, fillWithNewWords: true });
   const me = await app.inject({ method: 'GET', url: '/api/auth/me', headers });
-  assert.equal(me.json().sessionSize, 10);
-  const tooBig = await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { sessionSize: 51 } });
+  assert.deepEqual(me.json(), ok.json());
+  const tooBig = await app.inject({
+    method: 'PATCH',
+    url: '/api/settings',
+    headers,
+    payload: { sessionSize: 51, fillWithNewWords: false },
+  });
   assert.equal(tooBig.statusCode, 400);
+  const notBoolean = await app.inject({
+    method: 'PATCH',
+    url: '/api/settings',
+    headers,
+    payload: { sessionSize: 5, fillWithNewWords: 'yes' },
+  });
+  assert.equal(notBoolean.statusCode, 400);
 });

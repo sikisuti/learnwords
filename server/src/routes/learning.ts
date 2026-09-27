@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { requireAuth } from '../auth/session.ts';
+import { getSessionUser, requireAuth } from '../auth/session.ts';
 import type { Db } from '../db/connection.ts';
 import { buildDeck, completeDeck, userStats, type Completion } from '../services/deck.ts';
 
@@ -10,25 +10,36 @@ export function learningRoutes(app: FastifyInstance, db: Db) {
 
   app.get('/stats', async (request) => userStats(db, request.user!.id));
 
-  app.patch<{ Body: { sessionSize: number } }>(
+  app.patch<{ Body: { sessionSize: number; fillWithNewWords: boolean } }>(
     '/settings',
     {
       schema: {
         body: {
           type: 'object',
-          required: ['sessionSize'],
+          required: ['sessionSize', 'fillWithNewWords'],
           additionalProperties: false,
-          properties: { sessionSize: { type: 'integer', minimum: 1, maximum: 50 } },
+          properties: {
+            sessionSize: { type: 'integer', minimum: 1, maximum: 50 },
+            fillWithNewWords: { type: 'boolean' },
+          },
         },
       },
     },
     async (request) => {
-      db.prepare('UPDATE user SET session_size = ? WHERE id = ?').run(request.body.sessionSize, request.user!.id);
-      return { ...request.user!, sessionSize: request.body.sessionSize };
+      const { sessionSize, fillWithNewWords } = request.body;
+      db.prepare('UPDATE user_configuration SET session_size = ?, fill_with_new_words = ? WHERE user_id = ?').run(
+        sessionSize,
+        fillWithNewWords ? 1 : 0,
+        request.user!.id,
+      );
+      return getSessionUser(db, request.user!.id);
     },
   );
 
-  app.post('/sessions', async (request) => buildDeck(db, request.user!.id, request.user!.sessionSize));
+  app.post('/sessions', async (request) => {
+    const { id, sessionSize, fillWithNewWords } = request.user!;
+    return buildDeck(db, id, { sessionSize, fillWithNewWords });
+  });
 
   app.post<{ Body: Completion }>(
     '/sessions/complete',

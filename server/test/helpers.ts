@@ -17,18 +17,24 @@ export async function registerUser(app: App, username = 'alice', password = 'sec
   return { id: res.json().id as number, headers: { cookie: `${cookie.name}=${cookie.value}` } };
 }
 
-/** Inserts a dictionary word and links it to the user with the given stage and last_learned time. */
-export function seedUserWord(db: Db, userId: number, foreign: string, stage: number, lastLearned: Date): number {
+/** Inserts a dictionary word (not linked to any user) unless it exists; level ids: 1 = A1 … 6 = C2, 7 = unlevelled. */
+export function seedWord(db: Db, foreign: string, levelId = 7): number {
   const existing = db.prepare('SELECT id FROM word WHERE foreign_norm = ?').get(foreign.toLowerCase()) as
     | { id: number }
     | undefined;
-  const wordId =
+  return (
     existing?.id ??
     Number(
       db
-        .prepare(`INSERT INTO word (native, "foreign", foreign_norm, created_at) VALUES (?, ?, ?, ?)`)
-        .run(`native ${foreign}`, foreign, foreign.toLowerCase(), new Date().toISOString()).lastInsertRowid,
-    );
+        .prepare(`INSERT INTO word (native, "foreign", foreign_norm, level_id, created_at) VALUES (?, ?, ?, ?, ?)`)
+        .run(`native ${foreign}`, foreign, foreign.toLowerCase(), levelId, new Date().toISOString()).lastInsertRowid,
+    )
+  );
+}
+
+/** Inserts a dictionary word and links it to the user with the given stage and last_learned time. */
+export function seedUserWord(db: Db, userId: number, foreign: string, stage: number, lastLearned: Date): number {
+  const wordId = seedWord(db, foreign);
   db.prepare('INSERT INTO user_word (user_id, word_id, stage, last_learned) VALUES (?, ?, ?, ?)').run(
     userId,
     wordId,

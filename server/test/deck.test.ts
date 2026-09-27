@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildDeck, completeDeck, pickLearnWords, userStats } from '../src/services/deck.ts';
-import { daysAgo, registerUser, seedUserWord, testApp } from './helpers.ts';
+import { daysAgo, registerUser, seedUserWord, seedWord, testApp } from './helpers.ts';
 
 const foreigns = (words: { foreign: string }[]) => words.map((w) => w.foreign);
 
@@ -23,7 +23,7 @@ test('deck: lowest stages first, highest stages last, plus the 8 least recently 
   // 10 known words; k1 was seen longest ago.
   for (let i = 1; i <= 10; i++) seedUserWord(db, id, `k${i}`, 6, daysAgo(100 - i, now));
 
-  const deck = buildDeck(db, id, 5, now);
+  const deck = buildDeck(db, id, { sessionSize: 5 }, now);
   assert.equal(deck.issuedAt, now.toISOString());
   assert.deepEqual(foreigns(deck.learn), ['w1', 'w2', 'w3', 'w11', 'w12']);
   assert.deepEqual(foreigns(deck.known), ['k1', 'k2', 'k3', 'k4', 'k5', 'k6', 'k7', 'k8']);
@@ -46,7 +46,7 @@ test('deck only contains words that are due by the learning schedule', async () 
   ];
   for (const [name, stage, when] of cases) seedUserWord(db, id, name, stage, when);
 
-  const deck = buildDeck(db, id, 50, now);
+  const deck = buildDeck(db, id, { sessionSize: 50 }, now);
   const expected = cases.filter(([, , , due]) => due).map(([name]) => name);
   assert.deepEqual(foreigns(deck.learn).sort(), expected.sort());
   assert.equal(userStats(db, id, now).due, expected.length);
@@ -67,6 +67,81 @@ test("deck ignores other users' words and dictionary words not on the user's lis
   assert.equal(res.statusCode, 200);
   assert.deepEqual(foreigns(res.json().learn), ['mine']);
   assert.deepEqual(res.json().known, []);
+});
+
+test('with filling on, free slots get new dictionary words, easiest level first, linked at stage 1', async () => {
+  const { app, db } = await testApp();
+  const { id } = await registerUser(app);
+  const bob = await registerUser(app, 'bob');
+  const now = new Date('2026-06-01T12:00:00.000Z');
+  seedUserWord(db, id, 'own-due', 1, daysAgo(1, now));
+  seedWord(db, 'own-waiting', 1); // an A1 word the user already has, but not due yet
+  seedUserWord(db, id, 'own-waiting', 2, daysAgo(1, now));
+  seedUserWord(db, id, 'own-known', 6, daysAgo(1, now));
+  // Inserted out of level order; unlevelled words come after C2.
+  seedWord(db, 'unlevelled', 7);
+  seedWord(db, 'b1-first', 3);
+  seedWord(db, 'a2-first', 2);
+  seedWord(db, 'a1-first', 1);
+  seedWord(db, 'a2-second', 2);
+  seedWord(db, 'c2-first', 6);
+  seedWord(db, 'bobs-a1', 1); // on another user's list, but still new to alice
+  seedUserWord(db, bob.id, 'bobs-a1', 1, daysAgo(1, now));
+
+  const deck = buildDeck(db, id, { sessionSize: 5, fillWithNewWords: true }, now);
+  assert.deepEqual(foreigns(deck.learn), ['own-due', 'a1-first', 'bobs-a1', 'a2-first', 'a2-second']);
+  assert.ok(deck.learn.every((w) => w.stage === 1));
+  assert.deepEqual(foreigns(deck.known), ['own-known']);
+
+  const linked = db
+    .prepare(
+      `SELECT w."foreign" AS "foreign", uw.stage, uw.last_learned AS at
+         FROM user_word uw JOIN word w ON w.id = uw.word_id
+        WHERE uw.user_id = ? ORDER BY w.id`,
+    )
+    .all(id)
+    .map((r) => ({ ...r }));
+  for (const name of ['a1-first', 'bobs-a1', 'a2-first', 'a2-second']) {
+    assert.deepEqual(
+      linked.find((r) => r.foreign === name),
+      { foreign: name, stage: 1, at: now.toISOString() },
+    );
+  }
+  assert.equal(linked.length, 7, 'b1, c2 and unlevelled words stay unlinked');
+
+  // The joined words advance when the deck is completed.
+  const done = new Date('2026-06-01T12:20:00.000Z');
+  const completion = { issuedAt: deck.issuedAt, learnIds: deck.learn.map((w) => w.id), knownIds: [] };
+  assert.deepEqual(completeDeck(db, id, completion, done), { advanced: 5, reviewed: 0 });
+});
+
+test('with filling on, nothing is added when the own due words fill the deck', async () => {
+  const { app, db } = await testApp();
+  const { id } = await registerUser(app);
+  for (let i = 1; i <= 3; i++) seedUserWord(db, id, `own${i}`, 1, daysAgo(1));
+  seedWord(db, 'new', 1);
+
+  const deck = buildDeck(db, id, { sessionSize: 3, fillWithNewWords: true });
+  assert.deepEqual(foreigns(deck.learn), ['own1', 'own2', 'own3']);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM user_word').get()!.n, 3);
+});
+
+test('session endpoint follows the fill setting', async () => {
+  const { app, db } = await testApp();
+  const alice = await registerUser(app, 'alice');
+  seedWord(db, 'new', 1);
+
+  const off = await app.inject({ method: 'POST', url: '/api/sessions', headers: alice.headers });
+  assert.deepEqual(foreigns(off.json().learn), []);
+
+  await app.inject({
+    method: 'PATCH',
+    url: '/api/settings',
+    headers: alice.headers,
+    payload: { sessionSize: 5, fillWithNewWords: true },
+  });
+  const on = await app.inject({ method: 'POST', url: '/api/sessions', headers: alice.headers });
+  assert.deepEqual(foreigns(on.json().learn), ['new']);
 });
 
 test('completing a deck advances learned words once and refreshes known words', async () => {

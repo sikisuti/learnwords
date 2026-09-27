@@ -55,4 +55,14 @@ export const migrations: string[] = [
     expires_at TEXT NOT NULL
   ) WITHOUT ROWID;
   `,
+
+  /* 2: per-user settings move to user_configuration */ `
+  CREATE TABLE user_configuration (
+    user_id             INTEGER PRIMARY KEY REFERENCES user (id) ON DELETE CASCADE,
+    session_size        INTEGER NOT NULL DEFAULT 5 CHECK (session_size BETWEEN 1 AND 50),
+    fill_with_new_words INTEGER NOT NULL DEFAULT 0 CHECK (fill_with_new_words IN (0, 1))
+  );
+  INSERT INTO user_configuration (user_id, session_size) SELECT id, session_size FROM user;
+  ALTER TABLE user DROP COLUMN session_size;
+  `,
 ];

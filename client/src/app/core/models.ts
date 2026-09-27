@@ -2,7 +2,10 @@ export interface User {
   id: number;
   username: string;
   sessionSize: number;
+  fillWithNewWords: boolean;
 }
+
+export type Settings = Pick<User, 'sessionSize' | 'fillWithNewWords'>;
 
 export interface Level {
   id: number;

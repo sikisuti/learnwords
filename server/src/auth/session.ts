@@ -9,6 +9,20 @@ export interface SessionUser {
   id: number;
   username: string;
   sessionSize: number;
+  /** when the user's own due words leave free slots in a deck, fill them with dictionary words new to the user */
+  fillWithNewWords: boolean;
+}
+
+const SESSION_USER_QUERY = `SELECT u.id, u.username, c.session_size AS sessionSize, c.fill_with_new_words AS fillWithNewWords
+  FROM user u JOIN user_configuration c ON c.user_id = u.id`;
+
+type SessionUserRow = Omit<SessionUser, 'fillWithNewWords'> & { fillWithNewWords: number };
+
+const toSessionUser = (row: SessionUserRow | undefined): SessionUser | null =>
+  row ? { ...row, fillWithNewWords: row.fillWithNewWords === 1 } : null;
+
+export function getSessionUser(db: Db, userId: number): SessionUser | null {
+  return toSessionUser(db.prepare(`${SESSION_USER_QUERY} WHERE u.id = ?`).get(userId) as SessionUserRow | undefined);
 }
 
 declare module 'fastify' {
@@ -33,13 +47,9 @@ export function createSession(db: Db, userId: number, now = new Date()): { token
 
 export function findSessionUser(db: Db, token: string, now = new Date()): SessionUser | null {
   const row = db
-    .prepare(
-      `SELECT u.id, u.username, u.session_size AS sessionSize
-         FROM session s JOIN user u ON u.id = s.user_id
-        WHERE s.token_hash = ? AND s.expires_at > ?`,
-    )
-    .get(hashToken(token), now.toISOString()) as SessionUser | undefined;
-  return row ? { ...row } : null;
+    .prepare(`${SESSION_USER_QUERY} JOIN session s ON s.user_id = u.id WHERE s.token_hash = ? AND s.expires_at > ?`)
+    .get(hashToken(token), now.toISOString()) as SessionUserRow | undefined;
+  return toSessionUser(row);
 }
 
 export function deleteSession(db: Db, token: string): void {

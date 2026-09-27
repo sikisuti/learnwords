@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import type { AddResult, Deck, Level, SearchHit, Stats, User, WordInput } from './models';
+import type { AddResult, Deck, Level, SearchHit, Settings, Stats, User, WordInput } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -14,7 +14,7 @@ export class ApiService {
     firstValueFrom(this.http.post<User>('/api/auth/register', { username, password }));
   logout = () => firstValueFrom(this.http.post<void>('/api/auth/logout', {}));
 
-  updateSettings = (sessionSize: number) => firstValueFrom(this.http.patch<User>('/api/settings', { sessionSize }));
+  updateSettings = (settings: Settings) => firstValueFrom(this.http.patch<User>('/api/settings', settings));
   stats = () => firstValueFrom(this.http.get<Stats>('/api/stats'));
   levels = () => firstValueFrom(this.http.get<Level[]>('/api/levels'));
 

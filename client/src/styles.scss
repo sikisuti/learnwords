@@ -272,6 +272,38 @@ form {
   }
 }
 
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+
+  > span {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  strong {
+    font-size: 0.95rem;
+  }
+
+  small {
+    color: var(--muted);
+  }
+
+  input[type='checkbox'] {
+    flex: none;
+    width: 26px;
+    min-height: 0;
+    height: 26px;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--primary);
+    cursor: pointer;
+  }
+}
+
 input,
 select,
 textarea {

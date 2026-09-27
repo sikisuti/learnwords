@@ -21,6 +21,16 @@ import { ToastService } from '../core/toast.service';
           <input type="number" name="size" min="1" max="50" inputmode="numeric" [(ngModel)]="size" />
           <small>Each session also mixes in up to 8 words you already know, one per turn.</small>
         </label>
+        <label class="check">
+          <input type="checkbox" name="fill" [(ngModel)]="fillWithNewWords" />
+          <span>
+            <strong>Fill up with new words</strong>
+            <small>
+              When you have fewer words due than the session size, add words you have not learned yet, easiest level
+              first (A1, A2, B1…).
+            </small>
+          </span>
+        </label>
         @if (error()) {
           <p class="error" role="alert">{{ error() }}</p>
         }
@@ -35,6 +45,7 @@ export class SettingsPage {
   private readonly toast = inject(ToastService);
 
   protected size = this.auth.user()!.sessionSize;
+  protected fillWithNewWords = this.auth.user()!.fillWithNewWords;
   protected readonly busy = signal(false);
   protected readonly error = signal('');
 
@@ -47,7 +58,7 @@ export class SettingsPage {
     this.busy.set(true);
     this.error.set('');
     try {
-      this.auth.set(await this.api.updateSettings(size));
+      this.auth.set(await this.api.updateSettings({ sessionSize: size, fillWithNewWords: this.fillWithNewWords }));
       this.toast.show('Settings saved.');
     } catch (err) {
       this.error.set(errorMessage(err));
