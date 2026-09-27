@@ -139,11 +139,11 @@ rclone prints a command like rclone authorize "drive" "eyJ...". Run it on the PC
 
 Sign in to Google. On the "Google hasn't verified this app" warning click Advanced → Go to ... (unsafe), it's your own app, then allow access. Paste the token the PC prints into the config_token prompt on the Pi. Answer n to Configure this as a Shared Drive, then y to keep the remote.
 
-### Add the encryption layer
+### Add the backup remote
 
-The database contains user accounts, so it's encrypted before it leaves the Pi. Run rclone config again (same command as above) and add a second remote:
+The backup service uploads to a remote named backup. That remote decides the Drive folder (learnwords/backup) and whether the files are encrypted, so the service itself never changes. The database contains user accounts, so it's encrypted before it leaves the Pi. Run rclone config again (same command as above) and add a second remote:
 
-- n (new remote), name: gdrive-crypt
+- n (new remote), name: backup
 - Storage: crypt
 - remote: gdrive:learnwords/backup (the folder in Drive; its name stays readable, only the files inside are encrypted)
 - filename_encryption: standard
@@ -153,13 +153,17 @@ The database contains user accounts, so it's encrypted before it leaves the Pi. 
 
 Save both passwords in a password manager. The config file only obscures them, and without them the backups on Drive can't be read if the Pi is lost.
 
+For testing without encryption, make backup an alias remote instead (Storage: alias, remote: gdrive:learnwords/backup). Swap it for the crypt remote later by deleting it and adding the crypt one under the same name. Files uploaded without encryption stay readable in Drive, so delete them once the crypt remote is in place.
+
+Don't put a remote = line in the [gdrive] section. A drive remote ignores it, and the files end up in the Drive root.
+
 ### Test the upload by hand
 
 > sudo -u learnwords rclone --config /etc/learnwords/rclone.conf lsd gdrive:
-> sudo -u learnwords rclone --config /etc/learnwords/rclone.conf copy /var/lib/learnwords/backups gdrive-crypt: -v
-> sudo -u learnwords rclone --config /etc/learnwords/rclone.conf ls gdrive-crypt:
+> sudo -u learnwords rclone --config /etc/learnwords/rclone.conf copy /var/lib/learnwords/backups backup: -v
+> sudo -u learnwords rclone --config /etc/learnwords/rclone.conf ls backup:
 
-The Drive web page shows a learnwords/backup folder with scrambled file names inside. The last command lists the real names.
+The Drive web page shows a learnwords/backup folder with scrambled file names inside (plain names with the alias remote). The last command lists the real names.
 
 ### Install the backup timer
 
@@ -186,10 +190,10 @@ If an older cron entry for backup-db exists, remove it so snapshots aren't taken
 
 List the backups and download one:
 
-> sudo -u learnwords rclone --config /etc/learnwords/rclone.conf ls gdrive-crypt:
-> sudo -u learnwords rclone --config /etc/learnwords/rclone.conf copy gdrive-crypt:learnwords-<date>.db /tmp/restore/
+> sudo -u learnwords rclone --config /etc/learnwords/rclone.conf ls backup:
+> sudo -u learnwords rclone --config /etc/learnwords/rclone.conf copy backup:learnwords-<date>.db /tmp/restore/
 
-Then restore it as described in the README (Backup and restore). On a new Pi, copy rclone.conf back to /etc/learnwords first, or set up the two remotes again with the same crypt passwords.
+Then restore it as described in the README (Backup and restore). On a new Pi, copy rclone.conf back to /etc/learnwords first, or set up the gdrive and backup remotes again with the same crypt passwords.
 
 ### If the uploads stop
 
