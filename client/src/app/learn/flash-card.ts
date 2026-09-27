@@ -11,6 +11,7 @@ const TAP_TIME_MS = 400;
 const SWIPE_DISTANCE = 90;
 const SWIPE_VELOCITY = 0.5; // px per ms
 const EXIT_MS = 220;
+const KNOWN_STAGE = 6;
 
 /** The direction a drag leans towards most, or null if it goes left (not a gesture). */
 function leaning(dx: number, dy: number): { direction: Exit; distance: number } | null {
@@ -26,7 +27,7 @@ function leaning(dx: number, dy: number): { direction: Exit; distance: number } 
 /**
  * A two-sided card. Tap flips it; drag right ("again"), down ("done") or up ("known") throws it off the deck.
  * Up only works while `canMarkKnown` is true, which also shows the auto-added label; otherwise an upward drag
- * springs back.
+ * springs back. A known (stage 6) word always shows a known label.
  * The parent listens to `again` / `done` / `known`, which fire after the throw animation has finished.
  * The speaker button reads the foreign word aloud; with auto-play on, it is read whenever the foreign side shows.
  */
@@ -46,7 +47,7 @@ function leaning(dx: number, dy: number): { direction: Exit; distance: number } 
       (keydown)="onKey($event)"
       tabindex="0"
       role="button"
-      [attr.aria-label]="(canMarkKnown() ? 'Auto-added. ' : '') + textOf(flipped() ? back() : front()) + '. Tap to flip.'"
+      [attr.aria-label]="(tag() ? tag() + '. ' : '') + textOf(flipped() ? back() : front()) + '. Tap to flip.'"
     >
       <div class="hint again" [style.opacity]="hintOpacity().again">Again</div>
       <div class="hint done" [style.opacity]="hintOpacity().done">Done</div>
@@ -77,8 +78,8 @@ function leaning(dx: number, dy: number): { direction: Exit; distance: number } 
     </div>
 
     <ng-template #face let-text="text">
-      @if (canMarkKnown()) {
-        <span class="tag" aria-hidden="true">auto-added</span>
+      @if (tag(); as tag) {
+        <span class="tag" aria-hidden="true">{{ tag }}</span>
       }
       <div class="text" [class.long]="text.length > 40">{{ text }}</div>
     </ng-template>
@@ -98,6 +99,10 @@ export class FlashCard implements OnInit {
 
   protected readonly speech = inject(SpeechService);
   protected readonly exitMs = EXIT_MS;
+  /** the label in the card's top left corner, if any */
+  protected readonly tag = computed(() =>
+    this.canMarkKnown() ? 'auto-added' : this.word().stage === KNOWN_STAGE ? 'known' : null,
+  );
   protected readonly back = computed<Side>(() => (this.front() === 'native' ? 'foreign' : 'native'));
   protected readonly flipped = signal(false);
   protected readonly dragging = signal(false);
