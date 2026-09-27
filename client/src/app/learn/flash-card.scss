@@ -93,6 +93,45 @@ $grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width=
   }
 }
 
+.speak {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  opacity: 0.55;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    opacity 150ms ease,
+    background-color 150ms ease,
+    transform 120ms ease;
+
+  @media (hover: hover) {
+    &:hover {
+      opacity: 0.9;
+      background-color: rgb(43 38 56 / 0.08);
+    }
+  }
+
+  &:active {
+    transform: scale(0.92);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary);
+    opacity: 0.9;
+  }
+}
+
 .hint {
   position: absolute;
   top: 18px;

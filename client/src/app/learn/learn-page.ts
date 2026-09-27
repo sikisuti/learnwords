@@ -1,7 +1,8 @@
-import { Component, computed, inject, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService, errorMessage } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
+import { SpeechService } from '../core/speech.service';
 import { ToastService } from '../core/toast.service';
 import { FlashCard } from './flash-card';
 import {
@@ -87,6 +88,13 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
               ✓ Done
             </button>
           </div>
+          @if (speech.supported) {
+            <label class="switch">
+              <input type="checkbox" role="switch" [checked]="speech.autoPlay()" (change)="toggleAutoPlay($event)" />
+              <span class="track" aria-hidden="true"></span>
+              Auto-play English pronunciation
+            </label>
+          }
           <p class="muted hint">Tap to flip · swipe right to repeat · swipe down when you know it</p>
         }
       }
@@ -148,6 +156,58 @@ type View = 'loading' | 'empty' | 'learning' | 'saving' | 'error';
         border-color: rgb(166 236 208 / 0.35);
       }
     }
+    .switch {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 44px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      user-select: none;
+      input {
+        position: absolute;
+        opacity: 0;
+        width: 1px;
+        height: 1px;
+        min-height: 0;
+        pointer-events: none;
+      }
+      .track {
+        position: relative;
+        flex: none;
+        width: 44px;
+        height: 26px;
+        border-radius: 13px;
+        background: rgb(255 255 255 / 0.12);
+        border: 1px solid var(--glass-border);
+        transition: background-color 150ms ease;
+        &::after {
+          content: '';
+          position: absolute;
+          top: 2px;
+          left: 2px;
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: var(--text);
+          box-shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+          transition: transform 150ms ease;
+        }
+      }
+      input:checked + .track {
+        background: var(--gradient);
+        border-color: transparent;
+        &::after {
+          transform: translateX(18px);
+          background: var(--primary-text);
+        }
+      }
+      input:focus-visible + .track {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+      }
+    }
     .hint {
       margin: 0;
       text-align: center;
@@ -161,6 +221,7 @@ export class LearnPage {
   private readonly auth = inject(AuthService);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
+  protected readonly speech = inject(SpeechService);
 
   protected readonly turns = TURNS.length;
   protected readonly view = signal<View>('loading');
@@ -192,6 +253,7 @@ export class LearnPage {
 
   constructor() {
     void this.init();
+    inject(DestroyRef).onDestroy(() => this.speech.stop());
   }
 
   private async init() {
@@ -231,6 +293,13 @@ export class LearnPage {
     const next = done(this.state()!);
     this.update(next);
     if (next.finished) void this.finish();
+  }
+
+  protected toggleAutoPlay(event: Event) {
+    const on = (event.target as HTMLInputElement).checked;
+    this.speech.setAutoPlay(on);
+    // Read the English side right away if it is showing; this tap also unlocks speech on iOS.
+    if (on) this.flashCard()?.autoSpeak();
   }
 
   protected onKey(event: KeyboardEvent) {

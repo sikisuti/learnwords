@@ -1,6 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, ElementRef, computed, input, output, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, OnInit, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import type { DeckWord } from '../core/models';
+import { SpeechService } from '../core/speech.service';
 import type { Side } from './learning-session';
 
 type Exit = 'right' | 'down';
@@ -14,6 +15,7 @@ const EXIT_MS = 220;
 /**
  * A two-sided card. Tap flips it; drag right ("again") or down ("done") throws it off the deck.
  * The parent listens to `again` / `done`, which fire after the throw animation has finished.
+ * The speaker button reads the foreign word aloud; with auto-play on, it is read whenever the foreign side shows.
  */
 @Component({
   selector: 'app-flash-card',
@@ -43,6 +45,21 @@ const EXIT_MS = 220;
           <ng-container *ngTemplateOutlet="face; context: { text: textOf(back()) }" />
         </section>
       </div>
+      @if (speech.supported) {
+        <button
+          class="speak"
+          type="button"
+          [attr.aria-label]="'Play pronunciation of ' + word().foreign"
+          (pointerdown)="$event.stopPropagation()"
+          (keydown)="$event.stopPropagation()"
+          (click)="speak()"
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
+            <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </button>
+      }
     </div>
 
     <ng-template #face let-text="text">
@@ -52,13 +69,14 @@ const EXIT_MS = 220;
   imports: [NgTemplateOutlet],
   styleUrl: './flash-card.scss',
 })
-export class FlashCard {
+export class FlashCard implements OnInit {
   readonly word = input.required<DeckWord>();
   readonly front = input.required<Side>();
 
   readonly again = output<void>();
   readonly done = output<void>();
 
+  protected readonly speech = inject(SpeechService);
   protected readonly exitMs = EXIT_MS;
   protected readonly back = computed<Side>(() => (this.front() === 'native' ? 'foreign' : 'native'));
   protected readonly flipped = signal(false);
@@ -69,6 +87,10 @@ export class FlashCard {
   private readonly card = viewChild.required<ElementRef<HTMLElement>>('card');
 
   private start: { x: number; y: number; t: number; id: number } | null = null;
+
+  ngOnInit() {
+    this.autoSpeak();
+  }
 
   protected readonly transform = computed(() => {
     const exit = this.exit();
@@ -97,7 +119,19 @@ export class FlashCard {
   }
 
   flip() {
-    if (!this.exit()) this.flipped.update((f) => !f);
+    if (this.exit()) return;
+    this.flipped.update((f) => !f);
+    this.autoSpeak();
+  }
+
+  protected speak() {
+    this.speech.speak(this.word().foreign);
+  }
+
+  /** Reads the word if auto-play is on and the foreign side is now showing. */
+  autoSpeak() {
+    const showing = this.flipped() ? this.back() : this.front();
+    if (this.speech.autoPlay() && showing === 'foreign') this.speak();
   }
 
   /** Throws the card off the deck, then emits the matching output. */

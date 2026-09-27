@@ -16,6 +16,7 @@ See [initial-plan.md](initial-plan.md) for the functional specification.
 - A session deck is built from **N** words on your list (N is set in Settings, default 5). Only words due for their next stage count: stage 1 is always due, 2→3 after 3 days, 3→4 after 1 week, 4→5 after 2 weeks, 5→6 after 1 month. The eligible words are sorted by stage. The deck takes the 3 lowest-stage words and fills the rest from the highest stages. Up to 8 known (stage 6) words are added too, the least recently seen first, one per turn.
 - A session has 8 turns: 3 showing the native side first, 3 showing the foreign side first, and 2 mixed turns. In a mixed turn each card first shows a random side, then the opposite side in a second pass.
 - Tap a card to flip it. Swipe right to see the card again later in this pass, and swipe down when you know it. The Again / Flip / Done buttons and the → / Space / ↓ keys do the same.
+- The speaker icon on a card reads the English word aloud with the browser's built-in speech (a British voice when the device has one), whichever side is showing. With the **Auto-play English pronunciation** switch on, the word is read every time the English side comes up. The switch is remembered per device.
 - When all turns are done, every learned word moves up one stage. Known words stay at stage 6. An unfinished session is kept in the browser and can be resumed from the home screen.
 
 ## Development
