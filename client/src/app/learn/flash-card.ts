@@ -29,7 +29,8 @@ function leaning(dx: number, dy: number): { direction: Exit; distance: number } 
  * Up only works while `canMarkKnown` is true, which also shows the auto-added label; otherwise an upward drag
  * springs back. A known (stage 6) word always shows a known label.
  * The parent listens to `again` / `done` / `known`, which fire after the throw animation has finished.
- * The speaker button reads the foreign word aloud; with auto-play on, it is read whenever the foreign side shows.
+ * The speaker button plays the foreign word (its dictionary recording, or speech); with auto-play on, it plays
+ * whenever the foreign side shows.
  */
 @Component({
   selector: 'app-flash-card',
@@ -148,7 +149,7 @@ export class FlashCard implements OnInit {
   }
 
   protected speak() {
-    this.speech.speak(this.word().foreign);
+    this.speech.play(this.word());
   }
 
   /** Reads the word if auto-play is on and the foreign side is now showing. */

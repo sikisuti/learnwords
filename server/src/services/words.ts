@@ -1,5 +1,8 @@
 import type { Db } from '../db/connection.ts';
 import { transaction } from '../db/connection.ts';
+import { normalizeForeign } from './normalize.ts';
+
+export { normalizeForeign };
 
 export const UNLEVELLED_ID = 7;
 
@@ -12,6 +15,8 @@ export interface Word {
   pronunciation: string | null;
   level: string;
   lexicalCategory: string | null;
+  /** URL of a pronunciation recording (mp3), if any */
+  audio: string | null;
 }
 
 export interface WordInput {
@@ -22,6 +27,7 @@ export interface WordInput {
   pronunciation?: string | null;
   level?: string | null;
   lexicalCategory?: string | null;
+  audio?: string | null;
 }
 
 export interface Level {
@@ -30,14 +36,9 @@ export interface Level {
   name: string;
 }
 
-/** Key used to detect duplicate words: case, surrounding whitespace and Unicode composition are ignored. */
-export function normalizeForeign(text: string): string {
-  return text.normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
-}
-
 /** SELECT list producing a Word from `word w JOIN level l`. */
 export const WORD_COLUMNS = `w.id, w.native, w."foreign" AS "foreign", w.definition, w.example, w.pronunciation,
-  l.code AS level, w.lexical_category AS lexicalCategory`;
+  l.code AS level, w.lexical_category AS lexicalCategory, w.audio`;
 
 const blankToNull = (value: string | null | undefined) => (value?.trim() ? value.trim() : null);
 
@@ -58,28 +59,67 @@ export function getWord(db: Db, id: number): Word | undefined {
     | undefined;
 }
 
-function findWordIdByForeign(db: Db, foreign: string): number | undefined {
-  const row = db.prepare('SELECT id FROM word WHERE foreign_norm = ?').get(normalizeForeign(foreign)) as
-    | { id: number }
-    | undefined;
+/** Key of a definition; a missing definition is the empty string. */
+const definitionKey = (definition: string | null | undefined) => normalizeForeign(definition ?? '');
+
+/** The word with this foreign text and definition (a meaning), if the dictionary has it. */
+function findMeaning(db: Db, foreign: string, definition: string | null | undefined): number | undefined {
+  const row = db
+    .prepare('SELECT id FROM word WHERE foreign_norm = ? AND definition_norm = ?')
+    .get(normalizeForeign(foreign), definitionKey(definition)) as { id: number } | undefined;
+  return row?.id;
+}
+
+/**
+ * Gives the word with this foreign text and no definition (there is at most one) the input's definition, and fills
+ * its other empty fields from the input; its native text stays. Returns the word's id, or undefined if there is none.
+ */
+function fillUndefinedWord(db: Db, input: WordInput): number | undefined {
+  const row = db
+    .prepare(
+      `UPDATE word
+          SET definition = $definition,
+              definition_norm = $definitionNorm,
+              example = coalesce(example, $example),
+              pronunciation = coalesce(pronunciation, $pronunciation),
+              lexical_category = coalesce(lexical_category, $lexicalCategory),
+              audio = coalesce(audio, $audio),
+              level_id = CASE WHEN level_id = $unlevelled THEN $levelId ELSE level_id END
+        WHERE foreign_norm = $foreignNorm AND definition_norm = ''
+        RETURNING id`,
+    )
+    .get({
+      definition: blankToNull(input.definition),
+      definitionNorm: definitionKey(input.definition),
+      example: blankToNull(input.example),
+      pronunciation: blankToNull(input.pronunciation),
+      lexicalCategory: blankToNull(input.lexicalCategory),
+      audio: blankToNull(input.audio),
+      unlevelled: UNLEVELLED_ID,
+      levelId: levelIdFor(db, input.level),
+      foreignNorm: normalizeForeign(input.foreign),
+    }) as { id: number } | undefined;
   return row?.id;
 }
 
 function insertWord(db: Db, input: WordInput, now: Date): number {
   const result = db
     .prepare(
-      `INSERT INTO word (native, "foreign", foreign_norm, definition, example, pronunciation, level_id, lexical_category, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO word (native, "foreign", foreign_norm, definition, definition_norm, example, pronunciation, level_id,
+                         lexical_category, audio, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       input.native.trim(),
       input.foreign.trim(),
       normalizeForeign(input.foreign),
       blankToNull(input.definition),
+      definitionKey(input.definition),
       blankToNull(input.example),
       blankToNull(input.pronunciation),
       levelIdFor(db, input.level),
       blankToNull(input.lexicalCategory),
+      blankToNull(input.audio),
       now.toISOString(),
     );
   return Number(result.lastInsertRowid);
@@ -104,17 +144,30 @@ export interface AddResult {
   word: Word;
   /** true when a new row was inserted into the global dictionary */
   created: boolean;
+  /** true when an existing word without a definition was given the input's definition (and empty fields) */
+  filled: boolean;
   /** the user's stage for this word before it was (re)set to 1; null if it was not on their list */
   previousStage: number | null;
 }
 
-/** Adds a word to the global dictionary unless its foreign text already exists, then links it to the user at stage 1. */
+/**
+ * Links the word to the user at stage 1, finding it in the global dictionary by its meaning (foreign text and
+ * definition). If the dictionary does not have that meaning, an input with a definition fills in the word with
+ * the same foreign text and no definition, if there is one; otherwise the input is added as a new word.
+ * An existing word keeps its native text.
+ */
 export function addOrLinkWord(db: Db, userId: number, input: WordInput, now = new Date()): AddResult {
   return transaction(db, () => {
-    const existingId = findWordIdByForeign(db, input.foreign);
-    const wordId = existingId ?? insertWord(db, input, now);
+    const existingId = findMeaning(db, input.foreign, input.definition);
+    const filledId = existingId ?? (blankToNull(input.definition) ? fillUndefinedWord(db, input) : undefined);
+    const wordId = existingId ?? filledId ?? insertWord(db, input, now);
     const previousStage = linkToUser(db, userId, wordId, now);
-    return { word: getWord(db, wordId)!, created: existingId === undefined, previousStage };
+    return {
+      word: getWord(db, wordId)!,
+      created: existingId === undefined && filledId === undefined,
+      filled: existingId === undefined && filledId !== undefined,
+      previousStage,
+    };
   });
 }
 
@@ -123,7 +176,7 @@ export function linkExistingWord(db: Db, userId: number, wordId: number, now = n
   return transaction(db, () => {
     const word = getWord(db, wordId);
     if (!word) return undefined;
-    return { word, created: false, previousStage: linkToUser(db, userId, wordId, now) };
+    return { word, created: false, filled: false, previousStage: linkToUser(db, userId, wordId, now) };
   });
 }
 
@@ -143,7 +196,7 @@ export function searchWords(db: Db, userId: number, query: string, limit = 10): 
          JOIN level l ON l.id = w.level_id
          LEFT JOIN user_word uw ON uw.word_id = w.id AND uw.user_id = $user
         WHERE w.foreign_norm LIKE $contains ESCAPE '!' OR w.native LIKE $contains ESCAPE '!'
-        ORDER BY (w.foreign_norm LIKE $prefix ESCAPE '!' OR w.native LIKE $prefix ESCAPE '!') DESC, w.foreign_norm
+        ORDER BY (w.foreign_norm LIKE $prefix ESCAPE '!' OR w.native LIKE $prefix ESCAPE '!') DESC, w.foreign_norm, w.id
         LIMIT $limit`,
     )
     .all({ user: userId, contains: `%${q}%`, prefix: `${q}%`, limit }) as unknown as SearchHit[];

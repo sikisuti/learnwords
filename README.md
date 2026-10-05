@@ -12,13 +12,14 @@ See [initial-plan.md](initial-plan.md) for the functional specification.
 
 ## How learning works
 
-- Words live in one global dictionary. Adding a word whose foreign text already exists (ignoring case and spacing) does not create a duplicate. Either way, the word goes on **your** list at stage 1, or back to stage 1 if it was already on your list.
+- Words live in one global dictionary. A word is one meaning: its foreign text plus its definition, so "house" can be there several times with different definitions. Adding a meaning that already exists (ignoring case and spacing) does not create a duplicate, and the existing word keeps its native text. Adding a meaning with a definition to a word that is there without one gives that word the definition, and fills in its other empty fields, instead of creating a new word. Either way, the word goes on **your** list at stage 1, or back to stage 1 if it was already on your list.
+- On the Add a word page, the **Search** button looks the word up in the database and in the [Merriam-Webster Learner's Dictionary](https://www.dictionaryapi.com/products/api-learners-dictionary). Database words are listed first, marked **DB**; tapping one adds it to your list. Then come the dictionary's meanings, marked **Dictionary**. Choosing one closes the list and fills in the pronunciation, definition, example and category; you type the native text. Saving also stores the link to the dictionary's pronunciation recording.
 - A session deck is built from **N** words on your list (N is set in Settings, default 5). Only words due for their next stage count: stage 1 is always due, 2→3 after 3 days, 3→4 after 1 week, 4→5 after 2 weeks, 5→6 after 1 month. The eligible words are sorted by stage. The deck takes the 3 lowest-stage words and fills the rest from the highest stages. Up to 8 known (stage 6) words are added too, the least recently seen first, one per turn; their cards carry a **known** label in the top left corner.
 - With **Fill up with new words** turned on in Settings (off by default), a deck that has fewer than N due words is topped up with dictionary words not yet on your list, easiest level first (A1, A2, B1 … C2, then unlevelled). They join your list at stage 1, marked as auto-added. The first time such a card comes up in a session it carries an **auto-added** label in its top left corner; once it has been swiped right or down, the label is gone for the rest of the session. Adding such a word yourself removes the mark.
 - A session has 8 turns: 3 showing the native side first, 3 showing the foreign side first, and 2 mixed turns. In a mixed turn each card first shows a random side, then the opposite side in a second pass.
 - Tap a card to flip it. Swipe right to see the card again later in this pass, and swipe down when you know it. On a desktop, the Space / → / ↓ keys do the same.
 - Swipe up (or press ↑) on a card with the auto-added label if you already know the word: it goes straight to stage 6 and leaves the deck for the rest of the session. If that empties the deck before the turns are over, the session ends and you are back on the home screen.
-- The speaker icon on a card reads the English word aloud with the browser's built-in speech (a British voice when the device has one), whichever side is showing. With the **Auto-play English pronunciation** switch on, the word is read every time the English side comes up. The switch is remembered per device.
+- The speaker icon on a card plays the English word, whichever side is showing: the dictionary's recording when the word has one, otherwise the browser's built-in speech (a British voice when the device has one). With the **Auto-play English pronunciation** switch on, the word is read every time the English side comes up. The switch is remembered per device.
 - When all turns are done, every learned word moves up one stage. Known words stay at stage 6. An unfinished session is kept in the browser and can be resumed from the home screen.
 
 ## Development
@@ -30,6 +31,8 @@ npm install
 npm run build -w client          # builds the frontend into server/public
 npm run dev:server               # http://localhost:3000, restarts on changes
 ```
+
+`dev:server` also reads [configuration](#configuration) from a `.env` file in the repository root, if there is one (it is git-ignored). For example, put `MW_LEARNERS_API_KEY=<your key>` there. Variables already set in the shell win over the file.
 
 To get live reload for the frontend, run `npm run dev:client` as well and open http://localhost:4200. It proxies `/api` to port 3000.
 
@@ -48,6 +51,8 @@ npm test                         # server (node:test) + client (Vitest)
 | `PUBLIC_DIR` | `public` | Built frontend |
 | `COOKIE_SECURE` | `false` | Set to `true` when served over HTTPS |
 | `LOG_LEVEL` | `info` | Fastify/pino log level |
+| `LOG_FORMAT` | readable | Server log format: one readable line per entry (coloured on a terminal). Set to `json` for pino's JSON lines. |
+| `MW_LEARNERS_API_KEY` | none | Merriam-Webster Learner's Dictionary API key (free at [dictionaryapi.com](https://www.dictionaryapi.com/register/index)). Without it, the dictionary search on the Add a word page reports that it is not configured. |
 
 ## Raspberry Pi deployment
 
@@ -60,6 +65,10 @@ sudo useradd --system --no-create-home --shell /usr/sbin/nologin learnwords
 sudo mkdir -p /opt/learnwords
 # copy deploy/learnwords.service to /etc/systemd/system/, then:
 sudo systemctl daemon-reload && sudo systemctl enable learnwords
+# the dictionary API key stays out of the unit file:
+sudo mkdir -p /etc/learnwords
+echo "MW_LEARNERS_API_KEY=<your key>" | sudo tee /etc/learnwords/env >/dev/null
+sudo chmod 600 /etc/learnwords/env
 ```
 
 Every release, from the development machine (needs `ssh` and `tar`; Git Bash works):
@@ -103,7 +112,7 @@ The file defaults to `server/data/learnwords.db`. The script takes a consistent 
 |---|---|---|
 | `Auth.Users` | `user` | Matched by username, ignoring case. New users get the password `password`. Existing users, and their passwords, are left alone. |
 | `LearnWords.levels` | `level` | Matched by code or name. "Manually inserted" maps to `?` (Unlevelled). Any other level without a match is added. |
-| `LearnWords.words` | `word` | Matched by foreign text, ignoring case and spacing. Existing words are left alone. Old words with the same foreign text become one word, keeping the first one's native text. `audioFile` is dropped. |
+| `LearnWords.words` | `word` | Matched by foreign text and definition, ignoring case and spacing. Existing words are left alone. Old words with the same foreign text and definition become one word, keeping the first one's native text. `audioFile` is dropped. |
 | `LearnWords.userWords` | `user_word` | stage = min(state, 6). If a user and word pair already exists, the higher stage wins, then the later `last_learned`. |
 
 Everything runs in a single transaction. Running the script again with the same dump changes nothing.

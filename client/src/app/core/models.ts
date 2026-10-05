@@ -22,6 +22,8 @@ export interface Word {
   pronunciation: string | null;
   level: string;
   lexicalCategory: string | null;
+  /** URL of a pronunciation recording (mp3), if any */
+  audio: string | null;
 }
 
 export interface WordInput {
@@ -32,6 +34,7 @@ export interface WordInput {
   pronunciation?: string | null;
   level?: string | null;
   lexicalCategory?: string | null;
+  audio?: string | null;
 }
 
 export interface SearchHit extends Word {
@@ -39,9 +42,27 @@ export interface SearchHit extends Word {
   stage: number | null;
 }
 
+/** One meaning of a word found in the external dictionary. */
+export interface DictionarySense {
+  foreign: string;
+  definition: string | null;
+  example: string | null;
+  pronunciation: string | null;
+  lexicalCategory: string | null;
+  audio: string | null;
+}
+
+export interface LookupResult {
+  senses: DictionarySense[];
+  /** similar words the dictionary offers when it has no entry for the query */
+  suggestions: string[];
+}
+
 export interface AddResult {
   word: Word;
   created: boolean;
+  /** an existing word without a definition was given this definition */
+  filled: boolean;
   previousStage: number | null;
 }
 

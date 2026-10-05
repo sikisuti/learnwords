@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../auth/session.ts';
 import type { Db } from '../db/connection.ts';
+import { DictionaryError, DictionaryKeyError, lookupWord, type DictionaryOptions } from '../services/dictionary.ts';
 import { addOrLinkWord, linkExistingWord, listLevels, searchWords, type WordInput } from '../services/words.ts';
 
 const optionalText = { type: ['string', 'null'], maxLength: 2000 };
@@ -18,19 +19,43 @@ const wordSchema = {
       pronunciation: optionalText,
       level: { type: ['string', 'null'], enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', '?', '', null] },
       lexicalCategory: { type: ['string', 'null'], maxLength: 100 },
+      audio: { type: ['string', 'null'], maxLength: 500, pattern: '^https://' },
     },
   },
 } as const;
 
-export function wordRoutes(app: FastifyInstance, db: Db) {
+const queryString = {
+  querystring: { type: 'object', required: ['q'], properties: { q: { type: 'string', maxLength: 200 } } },
+} as const;
+
+export function wordRoutes(app: FastifyInstance, db: Db, dictionary: DictionaryOptions = {}) {
   app.addHook('preHandler', requireAuth);
 
   app.get('/levels', async () => listLevels(db));
 
   app.get<{ Querystring: { q: string } }>(
     '/words/search',
-    { schema: { querystring: { type: 'object', required: ['q'], properties: { q: { type: 'string', maxLength: 200 } } } } },
+    { schema: queryString },
     async (request) => searchWords(db, request.user!.id, request.query.q),
+  );
+
+  app.get<{ Querystring: { q: string } }>(
+    '/words/dictionary',
+    // The free API key allows 1000 lookups a day.
+    { schema: queryString, config: { rateLimit: { max: 30, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      if (!dictionary.apiKey) return reply.code(503).send({ error: 'Dictionary lookup is not configured.' });
+      try {
+        return await lookupWord(request.query.q, dictionary);
+      } catch (err) {
+        if (!(err instanceof DictionaryError)) throw err;
+        request.log.warn({ err }, 'dictionary lookup failed');
+        if (err instanceof DictionaryKeyError) {
+          return reply.code(503).send({ error: 'The dictionary rejected the API key. Check that it is a Learner’s Dictionary key.' });
+        }
+        return reply.code(502).send({ error: 'The dictionary could not be reached. Try again later.' });
+      }
+    },
   );
 
   app.post<{ Body: WordInput }>('/words', { schema: wordSchema }, async (request, reply) => {

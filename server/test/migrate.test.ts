@@ -59,6 +59,34 @@ test('migration 2 moves session_size from user to user_configuration', () => {
   );
 });
 
+test('migration 5 keys words by foreign text and definition, keeping ids and the words users have', () => {
+  const db = connect(':memory:');
+  migrate(db, migrations.slice(0, 4));
+  db.exec(`
+    INSERT INTO user (id, username, password_hash, created_at) VALUES (1, 'alice', 'x', '2026-01-01T00:00:00.000Z');
+    INSERT INTO word (id, native, "foreign", foreign_norm, definition, audio, created_at) VALUES
+      (7, 'ház', 'House', 'house', '  A building   where People LIVE ', 'https://example.com/h.mp3', '2026-01-01T00:00:00.000Z'),
+      (9, 'kutya', 'dog', 'dog', NULL, NULL, '2026-01-01T00:00:00.000Z');
+    INSERT INTO user_word (user_id, word_id, stage, last_learned) VALUES (1, 7, 3, '2026-01-01T00:00:00.000Z');
+  `);
+
+  migrate(db);
+
+  assert.deepEqual(rows(db, 'SELECT id, "foreign", definition_norm, audio FROM word ORDER BY id'), [
+    { id: 7, foreign: 'House', definition_norm: 'a building where people live', audio: 'https://example.com/h.mp3' },
+    { id: 9, foreign: 'dog', definition_norm: '', audio: null },
+  ]);
+  assert.deepEqual(rows(db, 'SELECT user_id, word_id, stage FROM user_word'), [{ user_id: 1, word_id: 7, stage: 3 }]);
+
+  const insert = db.prepare(
+    `INSERT INTO word (native, "foreign", foreign_norm, definition_norm, created_at) VALUES ('x', 'house', 'house', ?, '')`,
+  );
+  insert.run('the people who live in a house');
+  insert.run('');
+  assert.throws(() => insert.run(''), /UNIQUE/, 'only one word per meaning');
+  assert.ok(rows(db, 'PRAGMA index_list(word)').some((i) => i.name === 'word_native_idx'));
+});
+
 test('a table can be rebuilt without cascading deletes to the rows referencing it', () => {
   const db = populated();
   const rebuildUser: Migration = {

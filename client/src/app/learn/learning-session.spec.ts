@@ -24,6 +24,7 @@ const word = (id: number, stage: number, autoAdded = false): DeckWord => ({
   pronunciation: null,
   level: '?',
   lexicalCategory: null,
+  audio: null,
   stage,
   autoAdded,
 });

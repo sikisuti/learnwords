@@ -20,6 +20,8 @@ AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 # Set to true when the app is served over HTTPS (e.g. behind a reverse proxy).
 Environment=COOKIE_SECURE=false
+# Secrets such as MW_LEARNERS_API_KEY=... (root-owned, mode 600); the leading - lets the service start without it.
+EnvironmentFile=-/etc/learnwords/env
 ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning --max-old-space-size=200 dist/src/main.js
 Restart=on-failure
 RestartSec=5

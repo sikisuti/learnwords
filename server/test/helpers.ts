@@ -1,9 +1,10 @@
 import { buildApp } from '../src/app.ts';
 import { openDatabase, type Db } from '../src/db/connection.ts';
+import type { DictionaryOptions } from '../src/services/dictionary.ts';
 
-export async function testApp() {
+export async function testApp(dictionary?: DictionaryOptions) {
   const db = openDatabase(':memory:');
-  const app = await buildApp({ db });
+  const app = await buildApp({ db, dictionary });
   return { db, app };
 }
 

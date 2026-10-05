@@ -163,7 +163,7 @@ function parseTuples(sql, pos) {
 // Conversions (kept in sync with the app's formats by hand)
 // ---------------------------------------------------------------------------------------------------------------
 
-/** Same key the app uses for word.foreign_norm. */
+/** Same key the app uses for word.foreign_norm and word.definition_norm. */
 const normalizeForeign = (text) => text.normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
 
 const blankToNull = (value) => (value == null || !String(value).trim() ? null : String(value).trim());
@@ -258,10 +258,12 @@ function mergeUsers() {
 
 function mergeWords(levelMap) {
   const unlevelledId = db.prepare("SELECT id FROM level WHERE code = '?'").get()?.id;
-  const find = db.prepare('SELECT id FROM word WHERE foreign_norm = ?');
+  // A word is one meaning: its foreign text plus its definition.
+  const find = db.prepare('SELECT id FROM word WHERE foreign_norm = ? AND definition_norm = ?');
   const insert = db.prepare(
-    `INSERT INTO word (native, "foreign", foreign_norm, definition, example, pronunciation, level_id, lexical_category, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO word (native, "foreign", foreign_norm, definition, definition_norm, example, pronunciation, level_id,
+                       lexical_category, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const map = new Map();
   let added = 0, matched = 0, invalid = 0;
@@ -273,7 +275,9 @@ function mergeWords(levelMap) {
       continue;
     }
     const norm = normalizeForeign(foreign);
-    const existing = find.get(norm);
+    const definition = blankToNull(old.definition);
+    const definitionNorm = normalizeForeign(definition ?? '');
+    const existing = find.get(norm, definitionNorm);
     if (existing) {
       map.set(old.id, existing.id);
       matched++;
@@ -284,7 +288,8 @@ function mergeWords(levelMap) {
       native,
       foreign,
       norm,
-      blankToNull(old.definition),
+      definition,
+      definitionNorm,
       blankToNull(old.exampleSentence),
       blankToNull(old.pronunciation),
       levelId,

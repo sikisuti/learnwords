@@ -60,6 +60,97 @@ test('manually added words without a level are unlevelled', async () => {
   assert.equal(res.json().word.level, '?');
 });
 
+test('a new word keeps its pronunciation audio URL', async () => {
+  const { app } = await testApp();
+  const { headers } = await registerUser(app);
+  const audio = 'https://media.merriam-webster.com/audio/prons/en/us/mp3/h/house001.mp3';
+  const res = await app.inject({ method: 'POST', url: '/api/words', headers, payload: { native: 'ház', foreign: 'house', audio } });
+  assert.equal(res.json().word.audio, audio);
+
+  const hits = (await app.inject({ method: 'GET', url: '/api/words/search?q=house', headers })).json();
+  assert.equal(hits[0].audio, audio);
+
+  const plain = await app.inject({ method: 'POST', url: '/api/words', headers, payload: { native: 'kutya', foreign: 'dog' } });
+  assert.equal(plain.json().word.audio, null);
+
+  const notAUrl = await app.inject({
+    method: 'POST',
+    url: '/api/words',
+    headers,
+    payload: { native: 'macska', foreign: 'cat', audio: 'javascript:alert(1)' },
+  });
+  assert.equal(notAUrl.statusCode, 400);
+});
+
+test('a word can have several meanings, told apart by their definitions', async () => {
+  const { app, db } = await testApp();
+  const { headers } = await registerUser(app);
+  const add = (payload: object) => app.inject({ method: 'POST', url: '/api/words', headers, payload });
+
+  const building = await add({ native: 'ház', foreign: 'house', definition: 'a building in which a family lives' });
+  const people = await add({ native: 'háznép', foreign: 'house', definition: 'the people who live in a house' });
+  assert.equal(building.statusCode, 201);
+  assert.equal(people.statusCode, 201);
+  assert.notEqual(building.json().word.id, people.json().word.id);
+
+  const again = await add({ native: 'épület', foreign: ' House ', definition: 'A building in which  a family LIVES' });
+  assert.equal(again.statusCode, 200);
+  assert.equal(again.json().word.id, building.json().word.id, 'same meaning despite case and spacing');
+  assert.equal(again.json().word.native, 'ház');
+  assert.equal(count(db, `SELECT COUNT(*) AS n FROM word WHERE foreign_norm = 'house'`), 2);
+
+  const hits = (await app.inject({ method: 'GET', url: '/api/words/search?q=house', headers })).json();
+  assert.deepEqual(
+    hits.map((h: { definition: string }) => h.definition),
+    ['a building in which a family lives', 'the people who live in a house'],
+  );
+});
+
+test('a defined meaning fills in the word that has no definition yet', async () => {
+  const { app, db } = await testApp();
+  const { headers, id: userId } = await registerUser(app);
+  const bob = await registerUser(app, 'bob');
+  const old = addOrLinkWord(db, bob.id, { native: 'ház', foreign: 'house', pronunciation: '/haus/' }).word;
+  const add = (payload: object) => app.inject({ method: 'POST', url: '/api/words', headers, payload });
+
+  const filled = await add({
+    native: 'épület',
+    foreign: 'House',
+    definition: 'a building in which a family lives',
+    example: 'They bought a house.',
+    pronunciation: '/ˈhaʊs/',
+    lexicalCategory: 'noun',
+    level: 'A1',
+    audio: 'https://media.merriam-webster.com/audio/prons/en/us/mp3/h/house001.mp3',
+  });
+  assert.equal(filled.statusCode, 200);
+  assert.equal(filled.json().filled, true);
+  assert.equal(filled.json().created, false);
+  assert.deepEqual(filled.json().word, {
+    id: old.id,
+    native: 'ház',
+    foreign: 'house',
+    definition: 'a building in which a family lives',
+    example: 'They bought a house.',
+    pronunciation: '/haus/',
+    level: 'A1',
+    lexicalCategory: 'noun',
+    audio: 'https://media.merriam-webster.com/audio/prons/en/us/mp3/h/house001.mp3',
+  });
+  assert.equal(count(db, 'SELECT COUNT(*) AS n FROM user_word WHERE user_id = ? AND word_id = ?', userId, old.id), 1);
+
+  const second = await add({ native: 'háznép', foreign: 'house', definition: 'the people who live in a house' });
+  assert.equal(second.statusCode, 201, 'with no definition-less word left, another meaning is a new word');
+  assert.equal(second.json().filled, false);
+
+  const plain = await add({ native: 'ház', foreign: 'house' });
+  assert.equal(plain.statusCode, 201, 'a word without a definition is its own meaning');
+  const plainAgain = await add({ native: 'otthon', foreign: 'HOUSE' });
+  assert.equal(plainAgain.statusCode, 200);
+  assert.equal(plainAgain.json().word.id, plain.json().word.id);
+  assert.equal(count(db, `SELECT COUNT(*) AS n FROM word WHERE foreign_norm = 'house'`), 3);
+});
+
 test('search finds dictionary words and reports the user stage; learn links them', async () => {
   const { app, db } = await testApp();
   const { headers } = await registerUser(app);

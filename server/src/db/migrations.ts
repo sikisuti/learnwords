@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { normalizeForeign } from '../services/normalize.ts';
 
 export interface Migration {
   name: string;
@@ -85,5 +86,51 @@ export const migrations: Migration[] = [
     up: `
   ALTER TABLE user_word ADD COLUMN auto_added INTEGER NOT NULL DEFAULT 0 CHECK (auto_added IN (0, 1));
   `,
+  },
+  {
+    name: 'pronunciation audio url on words',
+    up: `
+  ALTER TABLE word ADD COLUMN audio TEXT;
+  `,
+  },
+  {
+    name: 'words are told apart by foreign text and definition',
+    up: (db) => {
+      db.exec(`
+  CREATE TABLE word_new (
+    id               INTEGER PRIMARY KEY,
+    native           TEXT NOT NULL,
+    "foreign"        TEXT NOT NULL,
+    foreign_norm     TEXT NOT NULL,
+    definition       TEXT,
+    definition_norm  TEXT NOT NULL DEFAULT '',
+    example          TEXT,
+    pronunciation    TEXT,
+    level_id         INTEGER NOT NULL DEFAULT 7 REFERENCES level (id),
+    lexical_category TEXT,
+    audio            TEXT,
+    created_at       TEXT NOT NULL
+  );
+  INSERT INTO word_new (id, native, "foreign", foreign_norm, definition, example, pronunciation, level_id,
+                        lexical_category, audio, created_at)
+    SELECT id, native, "foreign", foreign_norm, definition, example, pronunciation, level_id,
+           lexical_category, audio, created_at
+      FROM word;
+  DROP TABLE word;
+  ALTER TABLE word_new RENAME TO word;
+  `);
+      // The definition key uses the app's normalisation, which SQL cannot reproduce (Unicode case and composition).
+      const rows = db.prepare('SELECT id, definition FROM word WHERE definition IS NOT NULL').all() as {
+        id: number;
+        definition: string;
+      }[];
+      const setKey = db.prepare('UPDATE word SET definition_norm = ? WHERE id = ?');
+      for (const { id, definition } of rows) setKey.run(normalizeForeign(definition), id);
+      db.exec(`
+  CREATE INDEX word_native_idx ON word (native COLLATE NOCASE);
+  -- One word per meaning, which also allows only one word without a definition per foreign text.
+  CREATE UNIQUE INDEX word_meaning_idx ON word (foreign_norm, definition_norm);
+  `);
+    },
   },
 ];
