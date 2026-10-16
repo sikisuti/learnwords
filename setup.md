@@ -31,6 +31,27 @@ The application will create the bootable device. Insert it to the Raspberry Pi a
   > curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 2. Install Node.js (npm comes with it)
   > sudo apt-get install -y nodejs
+
+### Disable wifi power save
+
+#### check
+
+> iw dev wlan0 get power_save
+
+#### Disable until next restart
+
+> sudo iw dev wlan0 set power_save off
+
+#### Durable disable
+
+Create file for NetworkManager:
+> sudo nano /etc/NetworkManager/conf.d/wifi-powersave.conf
+
+With content:
+```
+[connection]
+wifi.powersave = 2
+```
   
 ## One-time setup on the Pi
 
