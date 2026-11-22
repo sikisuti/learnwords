@@ -72,6 +72,12 @@ export interface DeckWord extends Word {
   autoAdded: boolean;
 }
 
+/** A word on the user's list. */
+export interface UserWord extends DeckWord {
+  /** ISO timestamp of when the word was put on the list (or last re-added) */
+  addedAt: string;
+}
+
 export interface Deck {
   issuedAt: string;
   learn: DeckWord[];

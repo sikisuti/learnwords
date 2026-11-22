@@ -1,6 +1,8 @@
 import type { Db } from '../db/connection.ts';
 import { transaction } from '../db/connection.ts';
-import { WORD_COLUMNS, type Word } from './words.ts';
+import { DECK_WORD_COLUMNS, WORD_COLUMNS, toDeckWords, type DeckWord } from './words.ts';
+
+export type { DeckWord };
 
 export const KNOWN_STAGE = 6;
 /** One already-known word is mixed into each of the 8 turns (3 native + 3 foreign + 2 mixed pairs). */
@@ -22,21 +24,6 @@ export const STAGE_WAIT: Record<number, string> = {
 const DUE_CONDITION = `(uw.stage = 1 OR ${Object.entries(STAGE_WAIT)
   .map(([stage, wait]) => `(uw.stage = ${stage} AND datetime(uw.last_learned, '${wait}') <= datetime($now))`)
   .join(' OR ')})`;
-
-export interface DeckWord extends Word {
-  stage: number;
-  /** the word was put on the user's list by a deck filling its free slots, not by the user */
-  autoAdded: boolean;
-}
-
-/** SELECT list producing a DeckWord (with auto_added still 0/1) from `user_word uw JOIN word w JOIN level l`. */
-const DECK_WORD_COLUMNS = `${WORD_COLUMNS}, uw.stage, uw.auto_added AS autoAdded`;
-
-const toDeckWords = (rows: unknown[]): DeckWord[] =>
-  (rows as (Omit<DeckWord, 'autoAdded'> & { autoAdded: number })[]).map((row) => ({
-    ...row,
-    autoAdded: row.autoAdded === 1,
-  }));
 
 export interface Deck {
   /** ISO timestamp; completing the deck only updates words not learned since then */
@@ -85,9 +72,9 @@ function joinNewWords(db: Db, userId: number, count: number, joinedAt: string): 
     )
     .all({ user: userId, count });
   const link = db.prepare(
-    'INSERT INTO user_word (user_id, word_id, stage, last_learned, auto_added) VALUES (?, ?, 1, ?, 1)',
+    'INSERT INTO user_word (user_id, word_id, stage, last_learned, added_at, auto_added) VALUES (?, ?, 1, ?, ?, 1)',
   );
-  for (const word of words) link.run(userId, word.id as number, joinedAt);
+  for (const word of words) link.run(userId, word.id as number, joinedAt, joinedAt);
   return toDeckWords(words);
 }
 

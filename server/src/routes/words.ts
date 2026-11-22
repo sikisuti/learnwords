@@ -2,7 +2,14 @@ import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../auth/session.ts';
 import type { Db } from '../db/connection.ts';
 import { DictionaryError, DictionaryKeyError, lookupWord, type DictionaryOptions } from '../services/dictionary.ts';
-import { addOrLinkWord, linkExistingWord, listLevels, searchWords, type WordInput } from '../services/words.ts';
+import {
+  addOrLinkWord,
+  linkExistingWord,
+  listLevels,
+  listUserWords,
+  searchWords,
+  type WordInput,
+} from '../services/words.ts';
 
 const optionalText = { type: ['string', 'null'], maxLength: 2000 };
 
@@ -32,6 +39,9 @@ export function wordRoutes(app: FastifyInstance, db: Db, dictionary: DictionaryO
   app.addHook('preHandler', requireAuth);
 
   app.get('/levels', async () => listLevels(db));
+
+  /** The user's own words, most recently added first. */
+  app.get('/words', async (request) => listUserWords(db, request.user!.id));
 
   app.get<{ Querystring: { q: string } }>(
     '/words/search',

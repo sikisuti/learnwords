@@ -1,7 +1,18 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import type { AddResult, Deck, Level, LookupResult, SearchHit, Settings, Stats, User, WordInput } from './models';
+import type {
+  AddResult,
+  Deck,
+  Level,
+  LookupResult,
+  SearchHit,
+  Settings,
+  Stats,
+  User,
+  UserWord,
+  WordInput,
+} from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -20,6 +31,7 @@ export class ApiService {
   stats = () => firstValueFrom(this.http.get<Stats>('/api/stats'));
   levels = () => firstValueFrom(this.http.get<Level[]>('/api/levels'));
 
+  myWords = () => firstValueFrom(this.http.get<UserWord[]>('/api/words'));
   search = (q: string) => this.http.get<SearchHit[]>('/api/words/search', { params: { q } });
   lookup = (q: string) => firstValueFrom(this.http.get<LookupResult>('/api/words/dictionary', { params: { q } }));
   addWord = (word: WordInput) => firstValueFrom(this.http.post<AddResult>('/api/words', word));

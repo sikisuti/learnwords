@@ -133,4 +133,16 @@ export const migrations: Migration[] = [
   `);
     },
   },
+  {
+    name: 'when a word was put on the user list',
+    // Backfill: a stage 1 word was (re-)added at its last_learned; for the rest the word's own creation time is
+    // the best guess (exact for words the user typed in, earlier for ones already in the dictionary).
+    up: `
+  ALTER TABLE user_word ADD COLUMN added_at TEXT NOT NULL DEFAULT '';
+  UPDATE user_word
+     SET added_at = CASE WHEN stage = 1 THEN last_learned
+                         ELSE (SELECT w.created_at FROM word w WHERE w.id = user_word.word_id) END;
+  CREATE INDEX user_word_added_idx ON user_word (user_id, added_at);
+  `,
+  },
 ];

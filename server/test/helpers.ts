@@ -33,7 +33,7 @@ export function seedWord(db: Db, foreign: string, levelId = 7): number {
   );
 }
 
-/** Inserts a dictionary word and links it to the user with the given stage and last_learned time. */
+/** Inserts a dictionary word and links it to the user with the given stage, last_learned and added_at times. */
 export function seedUserWord(
   db: Db,
   userId: number,
@@ -41,15 +41,12 @@ export function seedUserWord(
   stage: number,
   lastLearned: Date,
   autoAdded = false,
+  addedAt?: Date,
 ): number {
   const wordId = seedWord(db, foreign);
-  db.prepare('INSERT INTO user_word (user_id, word_id, stage, last_learned, auto_added) VALUES (?, ?, ?, ?, ?)').run(
-    userId,
-    wordId,
-    stage,
-    lastLearned.toISOString(),
-    autoAdded ? 1 : 0,
-  );
+  db.prepare(
+    'INSERT INTO user_word (user_id, word_id, stage, last_learned, added_at, auto_added) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(userId, wordId, stage, lastLearned.toISOString(), (addedAt ?? lastLearned).toISOString(), autoAdded ? 1 : 0);
   return wordId;
 }
 

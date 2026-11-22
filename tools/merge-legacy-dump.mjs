@@ -319,6 +319,7 @@ function mergeUserWords(userMap, wordMap) {
       wordId,
       stage: Math.min(Math.max(Number(old.state) || 1, 1), KNOWN_STAGE),
       lastLearned: toIso(old.lastLearned) ?? toIso(old.created) ?? now,
+      addedAt: toIso(old.created) ?? toIso(old.lastLearned) ?? now,
     };
     const key = `${userId}:${wordId}`;
     const current = best.get(key);
@@ -328,7 +329,7 @@ function mergeUserWords(userMap, wordMap) {
   }
 
   const upsert = db.prepare(
-    `INSERT INTO user_word (user_id, word_id, stage, last_learned) VALUES (?, ?, ?, ?)
+    `INSERT INTO user_word (user_id, word_id, stage, last_learned, added_at) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT (user_id, word_id) DO UPDATE SET stage = excluded.stage, last_learned = excluded.last_learned
       WHERE excluded.stage > user_word.stage
          OR (excluded.stage = user_word.stage AND excluded.last_learned > user_word.last_learned)`,
@@ -337,7 +338,7 @@ function mergeUserWords(userMap, wordMap) {
   let added = 0, updated = 0, kept = 0;
   for (const row of best.values()) {
     const existed = exists.get(row.userId, row.wordId) !== undefined;
-    const { changes } = upsert.run(row.userId, row.wordId, row.stage, row.lastLearned);
+    const { changes } = upsert.run(row.userId, row.wordId, row.stage, row.lastLearned, row.addedAt);
     if (!existed) added++;
     else if (changes) updated++;
     else kept++;

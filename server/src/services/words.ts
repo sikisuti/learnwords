@@ -40,7 +40,23 @@ export interface Level {
 export const WORD_COLUMNS = `w.id, w.native, w."foreign" AS "foreign", w.definition, w.example, w.pronunciation,
   l.code AS level, w.lexical_category AS lexicalCategory, w.audio`;
 
-const blankToNull = (value: string | null | undefined) => (value?.trim() ? value.trim() : null);
+/** A word on a user's list. */
+export interface DeckWord extends Word {
+  stage: number;
+  /** the word was put on the user's list by a deck filling its free slots, not by the user */
+  autoAdded: boolean;
+}
+
+/** SELECT list producing a DeckWord (with auto_added still 0/1) from `user_word uw JOIN word w JOIN level l`. */
+export const DECK_WORD_COLUMNS = `${WORD_COLUMNS}, uw.stage, uw.auto_added AS autoAdded`;
+
+export const toDeckWords = <T extends DeckWord = DeckWord>(rows: unknown[]): T[] =>
+  (rows as (Omit<T, 'autoAdded'> & { autoAdded: number })[]).map((row) => ({
+    ...row,
+    autoAdded: row.autoAdded === 1,
+  })) as T[];
+
+const blankToNull =(value: string | null | undefined) => (value?.trim() ? value.trim() : null);
 
 export function listLevels(db: Db): Level[] {
   return db.prepare('SELECT id, code, name FROM level ORDER BY id').all() as unknown as Level[];
@@ -127,16 +143,17 @@ function insertWord(db: Db, input: WordInput, now: Date): number {
 
 /**
  * Puts the word on the user's list at stage 1, or resets it to stage 1 if already there; either way the user chose
- * it, so it is no longer auto-added. Returns the previous stage.
+ * it, so it is no longer auto-added, and it counts as newly added. Returns the previous stage.
  */
 function linkToUser(db: Db, userId: number, wordId: number, now: Date): number | null {
   const previous = db.prepare('SELECT stage FROM user_word WHERE user_id = ? AND word_id = ?').get(userId, wordId) as
     | { stage: number }
     | undefined;
   db.prepare(
-    `INSERT INTO user_word (user_id, word_id, stage, last_learned) VALUES (?, ?, 1, ?)
-     ON CONFLICT (user_id, word_id) DO UPDATE SET stage = 1, last_learned = excluded.last_learned, auto_added = 0`,
-  ).run(userId, wordId, now.toISOString());
+    `INSERT INTO user_word (user_id, word_id, stage, last_learned, added_at) VALUES ($user, $word, 1, $now, $now)
+     ON CONFLICT (user_id, word_id) DO UPDATE
+       SET stage = 1, last_learned = excluded.last_learned, added_at = excluded.added_at, auto_added = 0`,
+  ).run({ user: userId, word: wordId, now: now.toISOString() });
   return previous?.stage ?? null;
 }
 
@@ -178,6 +195,27 @@ export function linkExistingWord(db: Db, userId: number, wordId: number, now = n
     if (!word) return undefined;
     return { word, created: false, filled: false, previousStage: linkToUser(db, userId, wordId, now) };
   });
+}
+
+export interface UserWord extends DeckWord {
+  /** ISO timestamp of when the word was put on the user's list (or last re-added) */
+  addedAt: string;
+}
+
+/** Every word on the user's list, most recently added first. */
+export function listUserWords(db: Db, userId: number): UserWord[] {
+  return toDeckWords<UserWord>(
+    db
+      .prepare(
+        `SELECT ${DECK_WORD_COLUMNS}, uw.added_at AS addedAt
+           FROM user_word uw
+           JOIN word w ON w.id = uw.word_id
+           JOIN level l ON l.id = w.level_id
+          WHERE uw.user_id = ?
+          ORDER BY uw.added_at DESC, w.id DESC`,
+      )
+      .all(userId),
+  );
 }
 
 export interface SearchHit extends Word {

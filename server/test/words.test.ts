@@ -181,3 +181,42 @@ test('search finds dictionary words and reports the user stage; learn links them
   const missing = await app.inject({ method: 'POST', url: '/api/words/999/learn', headers });
   assert.equal(missing.statusCode, 404);
 });
+
+test("the word list has the user's own words, most recently added first, with their stage", async () => {
+  const { app, db } = await testApp();
+  const alice = await registerUser(app);
+  const bob = await registerUser(app, 'bob');
+  addOrLinkWord(db, alice.id, { native: 'dog', foreign: 'Hund' }, new Date('2026-01-01T00:00:00.000Z'));
+  addOrLinkWord(db, alice.id, { native: 'cat', foreign: 'Katze' }, new Date('2026-02-01T00:00:00.000Z'));
+  addOrLinkWord(db, alice.id, { native: 'house', foreign: 'Haus' }, new Date('2026-03-01T00:00:00.000Z'));
+  addOrLinkWord(db, bob.id, { native: 'tree', foreign: 'Baum' });
+  db.prepare(`UPDATE user_word SET stage = 6 WHERE user_id = ? AND word_id = (SELECT id FROM word WHERE "foreign" = 'Katze')`).run(
+    alice.id,
+  );
+
+  const list = async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/words', headers: alice.headers });
+    assert.equal(res.statusCode, 200);
+    return res.json() as { foreign: string; stage: number; autoAdded: boolean; addedAt: string }[];
+  };
+  const words = await list();
+  assert.deepEqual(
+    words.map(({ foreign, stage, autoAdded }) => ({ foreign, stage, autoAdded })),
+    [
+      { foreign: 'Haus', stage: 1, autoAdded: false },
+      { foreign: 'Katze', stage: 6, autoAdded: false },
+      { foreign: 'Hund', stage: 1, autoAdded: false },
+    ],
+  );
+  assert.equal(words[0].addedAt, '2026-03-01T00:00:00.000Z');
+
+  addOrLinkWord(db, alice.id, { native: 'dog', foreign: 'Hund' }, new Date('2026-04-01T00:00:00.000Z'));
+  assert.deepEqual(
+    (await list()).map((w) => w.foreign),
+    ['Hund', 'Haus', 'Katze'],
+    're-adding a word moves it to the top',
+  );
+
+  const anonymous = await app.inject({ method: 'GET', url: '/api/words' });
+  assert.equal(anonymous.statusCode, 401);
+});

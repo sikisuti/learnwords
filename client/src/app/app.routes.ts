@@ -27,6 +27,16 @@ export const routes: Routes = [
         loadComponent: () => import('./learn/learn-page').then((m) => m.LearnPage),
       },
       {
+        path: 'test',
+        title: 'Test my words · Learn Words',
+        loadComponent: () => import('./pages/test-select-page').then((m) => m.TestSelectPage),
+      },
+      {
+        path: 'test/run',
+        title: 'Test · Learn Words',
+        loadComponent: () => import('./learn/test-page').then((m) => m.TestPage),
+      },
+      {
         path: 'add',
         title: 'Add a word · Learn Words',
         loadComponent: () => import('./pages/add-word-page').then((m) => m.AddWordPage),

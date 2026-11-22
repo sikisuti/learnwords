@@ -34,6 +34,7 @@ import { clearSession, completedPasses, loadSession, TOTAL_PASSES } from '../lea
         <a class="btn primary big block" routerLink="/learn">Start learning</a>
       }
       <a class="btn big block" routerLink="/add">＋ Add a word</a>
+      <a class="btn big block" routerLink="/test">Test my words</a>
 
       <button class="btn link logout" (click)="logout()">Log out</button>
     </div>

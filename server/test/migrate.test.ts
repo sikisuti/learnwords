@@ -163,3 +163,24 @@ test('a database newer than the build is refused', () => {
     new RegExp(`schema is at version ${migrations.length + 1}, but this build only knows ${migrations.length} migrations`),
   );
 });
+
+test('migration 6 backfills added_at from last_learned at stage 1, otherwise from the word', () => {
+  const db = connect(':memory:');
+  migrate(db, migrations.slice(0, 5));
+  db.exec(`
+    INSERT INTO user (id, username, password_hash, created_at) VALUES (1, 'alice', 'x', '2026-01-01T00:00:00.000Z');
+    INSERT INTO word (id, native, "foreign", foreign_norm, created_at) VALUES
+      (1, 'kutya', 'dog', 'dog', '2025-01-01T00:00:00.000Z'),
+      (2, 'macska', 'cat', 'cat', '2025-02-01T00:00:00.000Z');
+    INSERT INTO user_word (user_id, word_id, stage, last_learned) VALUES
+      (1, 1, 1, '2026-03-01T00:00:00.000Z'),
+      (1, 2, 4, '2026-03-02T00:00:00.000Z');
+  `);
+
+  migrate(db);
+
+  assert.deepEqual(rows(db, 'SELECT word_id, added_at FROM user_word ORDER BY word_id'), [
+    { word_id: 1, added_at: '2026-03-01T00:00:00.000Z' },
+    { word_id: 2, added_at: '2025-02-01T00:00:00.000Z' },
+  ]);
+});
