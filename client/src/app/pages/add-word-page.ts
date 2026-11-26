@@ -1,10 +1,10 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiService, errorMessage } from '../core/api.service';
-import type { AddResult, DictionarySense, Level, SearchHit } from '../core/models';
+import type { AddResult, DictionarySense, Level, SearchHit, UserWord } from '../core/models';
 import { ToastService } from '../core/toast.service';
 
 const CATEGORIES = ['noun', 'verb', 'adjective', 'adverb', 'pronoun', 'preposition', 'conjunction', 'phrase', 'sentence'];
@@ -17,143 +17,160 @@ const normalize = (text: string) => text.normalize('NFC').trim().replace(/\s+/g,
   template: `
     <div class="page">
       <header class="topbar">
-        <a class="btn icon" routerLink="/" aria-label="Back">←</a>
-        <h1>Add a word</h1>
+        <a class="btn icon" [routerLink]="editId === null ? '/' : '/words'" aria-label="Back">←</a>
+        <h1>{{ editId === null ? 'Add a word' : 'Edit word' }}</h1>
       </header>
 
-      <form class="panel" [formGroup]="form" (ngSubmit)="submit()">
-        <div class="field">
-          <span><label for="foreign">Foreign</label></span>
-          <div class="search">
-            <input
-              id="foreign"
-              formControlName="foreign"
-              autocomplete="off"
-              autocapitalize="none"
-              enterkeyhint="search"
-              (keydown.enter)="$event.preventDefault(); search()"
-            />
-            <button type="button" class="btn" (click)="search()" [disabled]="lookingUp() || !foreign().trim()">
-              {{ lookingUp() ? 'Searching…' : 'Search' }}
-            </button>
-          </div>
-          <small>Search looks for the word in the database and in the Learner's Dictionary.</small>
+      @if (loadError()) {
+        <div class="panel">
+          <p class="error" role="alert">{{ loadError() }}</p>
+          <a class="btn primary block" routerLink="/words">Back to my words</a>
         </div>
+      } @else if (editId !== null && !editing()) {
+        <p class="muted">Loading the word…</p>
+      } @else {
+        <form class="panel" [formGroup]="form" (ngSubmit)="submit()">
+          <div class="field">
+            <span><label for="foreign">Foreign</label></span>
+            <div class="search">
+              <input
+                id="foreign"
+                formControlName="foreign"
+                autocomplete="off"
+                autocapitalize="none"
+                enterkeyhint="search"
+                (keydown.enter)="$event.preventDefault(); search()"
+              />
+              <button type="button" class="btn" (click)="search()" [disabled]="lookingUp() || !foreign().trim()">
+                {{ lookingUp() ? 'Searching…' : 'Search' }}
+              </button>
+            </div>
+            <small>
+              @if (editId === null) {
+                Search looks for the word in the database and in the Learner's Dictionary.
+              } @else {
+                Search looks for the word in the Learner's Dictionary to fill the form.
+              }
+            </small>
+          </div>
 
-        @if (resultsOpen() && (hits().length || dictionary().length)) {
-          <ul class="hits" aria-label="Matching words">
-            @for (hit of hits(); track hit.id) {
-              <li>
-                <button type="button" class="hit" (click)="learn(hit)" [disabled]="busy()">
-                  <span class="words">
-                    <strong>{{ hit.foreign }} <span class="source db" title="Already in the database">DB</span></strong>
-                    <span class="muted">{{ hit.native }}</span>
-                    @if (hit.definition) {
-                      <span class="muted definition">{{ hit.definition }}</span>
-                    }
-                  </span>
-                  <span class="status">
-                    @if (hit.level !== '?') {
-                      <span class="level">{{ hit.level }}</span>
-                    }
-                    {{ hit.stage === null ? '＋ Learn' : hit.stage === 6 ? 'Known · relearn' : 'Stage ' + hit.stage + ' · restart' }}
-                  </span>
-                </button>
-              </li>
-            }
-            @for (row of dictionaryRows(); track $index) {
-              @let sense = row.sense;
-              <li>
-                <button
-                  type="button"
-                  class="hit"
-                  [class.in-db]="row.inDatabase"
-                  (click)="select(sense)"
-                  [disabled]="busy() || row.inDatabase"
-                  [attr.title]="row.inDatabase ? 'This meaning is already in the database; choose its DB row above.' : null"
-                >
-                  <span class="words">
-                    <strong>
-                      {{ sense.foreign }}
-                      @if (sense.lexicalCategory) {
-                        <span class="category">{{ sense.lexicalCategory }}</span>
+          @if (resultsOpen() && (hits().length || dictionary().length)) {
+            <ul class="hits" aria-label="Matching words">
+              @for (hit of hits(); track hit.id) {
+                <li>
+                  <button type="button" class="hit" (click)="learn(hit)" [disabled]="busy()">
+                    <span class="words">
+                      <strong>{{ hit.foreign }} <span class="source db" title="Already in the database">DB</span></strong>
+                      <span class="muted">{{ hit.native }}</span>
+                      @if (hit.definition) {
+                        <span class="muted definition">{{ hit.definition }}</span>
                       }
-                      <span class="source dict" title="From the Learner's Dictionary">Dictionary</span>
-                    </strong>
-                    <span class="muted definition">{{ sense.definition }}</span>
-                  </span>
-                  <span class="status">{{ row.inDatabase ? 'In DB' : 'Use' }}</span>
-                </button>
-              </li>
-            }
-          </ul>
-        }
+                    </span>
+                    <span class="status">
+                      @if (hit.level !== '?') {
+                        <span class="level">{{ hit.level }}</span>
+                      }
+                      {{ hit.stage === null ? '＋ Learn' : hit.stage === 6 ? 'Known · relearn' : 'Stage ' + hit.stage + ' · restart' }}
+                    </span>
+                  </button>
+                </li>
+              }
+              @for (row of dictionaryRows(); track $index) {
+                @let sense = row.sense;
+                <li>
+                  <button
+                    type="button"
+                    class="hit"
+                    [class.in-db]="row.inDatabase"
+                    (click)="select(sense)"
+                    [disabled]="busy() || row.inDatabase"
+                    [attr.title]="row.inDatabase ? 'This meaning is already in the database; choose its DB row above.' : null"
+                  >
+                    <span class="words">
+                      <strong>
+                        {{ sense.foreign }}
+                        @if (sense.lexicalCategory) {
+                          <span class="category">{{ sense.lexicalCategory }}</span>
+                        }
+                        <span class="source dict" title="From the Learner's Dictionary">Dictionary</span>
+                      </strong>
+                      <span class="muted definition">{{ sense.definition }}</span>
+                    </span>
+                    <span class="status">{{ row.inDatabase ? 'In DB' : 'Use' }}</span>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
 
-        @if (suggestions().length) {
-          <div class="suggestions">
-            <span class="muted">Not in the dictionary. Did you mean:</span>
-            @for (word of suggestions(); track word) {
-              <button type="button" class="chip" (click)="searchFor(word)">{{ word }}</button>
-            }
+          @if (suggestions().length) {
+            <div class="suggestions">
+              <span class="muted">Not in the dictionary. Did you mean:</span>
+              @for (word of suggestions(); track word) {
+                <button type="button" class="chip" (click)="searchFor(word)">{{ word }}</button>
+              }
+            </div>
+          } @else if (resultsOpen() && !dictionary().length && !lookupError()) {
+            <p class="muted note">The dictionary has no entry for “{{ searchedFor() }}”.</p>
+          }
+          @if (lookupError()) {
+            <p class="error" role="alert">{{ lookupError() }}</p>
+          }
+
+          @if (existing(); as existing) {
+            <p class="muted note">
+              @if (existing.fills) {
+                “{{ existing.hit.foreign }}” is in the database without a definition. Saving gives it this one and adds it to your list.
+              } @else {
+                “{{ existing.hit.foreign }}” with this definition is already in the database. Saving adds it to your list.
+              }
+            </p>
+          }
+
+          <label class="field">
+            <span>Native</span>
+            <input formControlName="native" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Pronunciation <span class="muted">(optional)</span></span>
+            <input formControlName="pronunciation" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Definition <span class="muted">(optional)</span></span>
+            <textarea formControlName="definition" rows="2"></textarea>
+          </label>
+          <label class="field">
+            <span>Example <span class="muted">(optional)</span></span>
+            <textarea formControlName="example" rows="2"></textarea>
+          </label>
+          <div class="row">
+            <label class="field">
+              <span>Category</span>
+              <input formControlName="lexicalCategory" list="categories" autocomplete="off" autocapitalize="none" />
+              <datalist id="categories">
+                @for (c of categories; track c) {
+                  <option [value]="c"></option>
+                }
+              </datalist>
+            </label>
+            <label class="field">
+              <span>Level</span>
+              <select formControlName="level">
+                @for (level of levels(); track level.id) {
+                  <option [value]="level.code">{{ level.code === '?' ? 'Not set' : level.code + ' · ' + level.name }}</option>
+                }
+              </select>
+            </label>
           </div>
-        } @else if (resultsOpen() && !dictionary().length && !lookupError()) {
-          <p class="muted note">The dictionary has no entry for “{{ searchedFor() }}”.</p>
-        }
-        @if (lookupError()) {
-          <p class="error" role="alert">{{ lookupError() }}</p>
-        }
 
-        @if (existing(); as existing) {
-          <p class="muted note">
-            @if (existing.fills) {
-              “{{ existing.hit.foreign }}” is in the database without a definition. Saving gives it this one and adds it to your list.
-            } @else {
-              “{{ existing.hit.foreign }}” with this definition is already in the database. Saving adds it to your list.
-            }
-          </p>
-        }
-
-        <label class="field">
-          <span>Native</span>
-          <input formControlName="native" autocomplete="off" />
-        </label>
-        <label class="field">
-          <span>Pronunciation <span class="muted">(optional)</span></span>
-          <input formControlName="pronunciation" autocomplete="off" />
-        </label>
-        <label class="field">
-          <span>Definition <span class="muted">(optional)</span></span>
-          <textarea formControlName="definition" rows="2"></textarea>
-        </label>
-        <label class="field">
-          <span>Example <span class="muted">(optional)</span></span>
-          <textarea formControlName="example" rows="2"></textarea>
-        </label>
-        <div class="row">
-          <label class="field">
-            <span>Category</span>
-            <input formControlName="lexicalCategory" list="categories" autocomplete="off" autocapitalize="none" />
-            <datalist id="categories">
-              @for (c of categories; track c) {
-                <option [value]="c"></option>
-              }
-            </datalist>
-          </label>
-          <label class="field">
-            <span>Level</span>
-            <select formControlName="level">
-              @for (level of levels(); track level.id) {
-                <option [value]="level.code">{{ level.code === '?' ? 'Not set' : level.code + ' · ' + level.name }}</option>
-              }
-            </select>
-          </label>
-        </div>
-
-        @if (error()) {
-          <p class="error" role="alert">{{ error() }}</p>
-        }
-        <button class="btn primary block" type="submit" [disabled]="busy()">Save word</button>
-      </form>
+          @if (error()) {
+            <p class="error" role="alert">{{ error() }}</p>
+          }
+          <button class="btn primary block" type="submit" [disabled]="busy()">
+            {{ editId === null ? 'Save word' : 'Save changes' }}
+          </button>
+        </form>
+      }
     </div>
   `,
   styles: `
@@ -282,6 +299,13 @@ const normalize = (text: string) => text.normalize('NFC').trim().replace(/\s+/g,
 export class AddWordPage {
   private readonly api = inject(ApiService);
   private readonly toast = inject(ToastService);
+  private readonly router = inject(Router);
+
+  /** the id of the word being edited (from the route), or null when adding a new one */
+  protected readonly editId: number | null = this.routeId();
+  /** the word being edited, once loaded */
+  protected readonly editing = signal<UserWord | null>(null);
+  protected readonly loadError = signal('');
 
   protected readonly categories = CATEGORIES;
   protected readonly busy = signal(false);
@@ -339,6 +363,7 @@ export class AddWordPage {
       (levels) => this.levels.set(levels),
       () => undefined,
     );
+    if (this.editId !== null) void this.loadWord(this.editId);
     // Search results belong to the searched or chosen text; editing it into something else drops them.
     this.form.controls.foreign.valueChanges.pipe(takeUntilDestroyed()).subscribe((value) => {
       const text = normalize(value);
@@ -347,7 +372,33 @@ export class AddWordPage {
     });
   }
 
-  /** Searches the database and the dictionary together; either one failing still lists the other's results. */
+  private routeId(): number | null {
+    const id = Number(inject(ActivatedRoute).snapshot.paramMap.get('id'));
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }
+
+  private async loadWord(id: number) {
+    try {
+      const word = await this.api.myWord(id);
+      this.form.reset({
+        foreign: word.foreign,
+        native: word.native,
+        pronunciation: word.pronunciation ?? '',
+        definition: word.definition ?? '',
+        example: word.example ?? '',
+        lexicalCategory: word.lexicalCategory ?? '',
+        level: word.level,
+      });
+      this.editing.set(word);
+    } catch (err) {
+      this.loadError.set(errorMessage(err, 'The word could not be loaded.'));
+    }
+  }
+
+  /**
+   * Searches the database and the dictionary together; either one failing still lists the other's results.
+   * Editing a word searches only the dictionary: a database word could only be put on the list, not edited into.
+   */
   protected async search() {
     const query = this.form.controls.foreign.value.trim();
     if (!query || this.lookingUp()) return;
@@ -356,7 +407,7 @@ export class AddWordPage {
     this.lookingUp.set(true);
     let lookupError = '';
     const [hits, lookup] = await Promise.all([
-      firstValueFrom(this.api.search(query)).catch(() => [] as SearchHit[]),
+      this.editId === null ? firstValueFrom(this.api.search(query)).catch(() => [] as SearchHit[]) : [],
       this.api.lookup(query).catch((err) => {
         lookupError = errorMessage(err);
         return { senses: [], suggestions: [] };
@@ -395,6 +446,7 @@ export class AddWordPage {
   }
 
   protected async submit() {
+    if (this.editId !== null) return this.saveChanges(this.editId, this.editing()!);
     const value = this.form.getRawValue();
     if (!value.foreign.trim() || (!value.native.trim() && !this.existing())) {
       this.error.set('Enter both the foreign and the native text.');
@@ -408,6 +460,34 @@ export class AddWordPage {
         audio: this.selected()?.audio ?? null,
       }),
     );
+  }
+
+  /**
+   * Saves the edited attributes only; the server keeps the stage and timestamps. The pronunciation recording comes
+   * from a chosen dictionary sense, else stays while the foreign text is the same.
+   */
+  private async saveChanges(id: number, original: UserWord) {
+    const value = this.form.getRawValue();
+    if (!value.foreign.trim() || !value.native.trim()) {
+      this.error.set('Enter both the foreign and the native text.');
+      return;
+    }
+    const keepsAudio = normalize(value.foreign) === normalize(original.foreign);
+    this.busy.set(true);
+    this.error.set('');
+    try {
+      const word = await this.api.updateWord(id, {
+        ...value,
+        level: value.level === '?' ? null : value.level,
+        audio: this.selected()?.audio ?? (keepsAudio ? original.audio : null),
+      });
+      this.toast.show(`“${word.foreign}” saved.`);
+      await this.router.navigateByUrl('/words');
+    } catch (err) {
+      this.error.set(errorMessage(err));
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   private async run(action: () => Promise<AddResult>) {

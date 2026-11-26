@@ -20,9 +20,9 @@ import { clearSession, completedPasses, loadSession, TOTAL_PASSES } from '../lea
         <p class="name">{{ auth.user()?.username }}</p>
         @if (stats(); as s) {
           <div class="stats">
-            <div class="due sketch"><strong>{{ s.due }}</strong><span>due now</span></div>
-            <div class="learning sketch"><strong>{{ s.learning }}</strong><span>learning</span></div>
-            <div class="known sketch"><strong>{{ s.known }}</strong><span>known</span></div>
+            <a class="due sketch" routerLink="/words"><strong>{{ s.due }}</strong><span>due now</span></a>
+            <a class="learning sketch" routerLink="/words"><strong>{{ s.learning }}</strong><span>learning</span></a>
+            <a class="known sketch" routerLink="/words"><strong>{{ s.known }}</strong><span>known</span></a>
           </div>
         }
       </section>
@@ -53,14 +53,20 @@ import { clearSession, completedPasses, loadSession, TOTAL_PASSES } from '../lea
       gap: 8px;
       margin-top: 16px;
       text-align: center;
-      div {
+      a {
         --line-color: var(--ink);
+        display: block;
         padding: 12px 4px;
+        text-decoration: none;
         border-radius: var(--wobble-sm);
         background: var(--lavender);
         color: var(--primary-text);
         box-shadow: 3px 4px 0 rgb(0 0 0 / 0.45);
         transform: rotate(1deg);
+        &:focus-visible {
+          outline: 2px dashed var(--primary);
+          outline-offset: 4px;
+        }
       }
       .due {
         background: var(--peach);

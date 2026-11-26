@@ -239,3 +239,60 @@ export function searchWords(db: Db, userId: number, query: string, limit = 10): 
     )
     .all({ user: userId, contains: `%${q}%`, prefix: `${q}%`, limit }) as unknown as SearchHit[];
 }
+
+/** The word if it is on the user's list, with the user's stage. */
+export function getUserWord(db: Db, userId: number, wordId: number): UserWord | undefined {
+  return toDeckWords<UserWord>(
+    db
+      .prepare(
+        `SELECT ${DECK_WORD_COLUMNS}, uw.added_at AS addedAt
+           FROM user_word uw
+           JOIN word w ON w.id = uw.word_id
+           JOIN level l ON l.id = w.level_id
+          WHERE uw.user_id = ? AND uw.word_id = ?`,
+      )
+      .all(userId, wordId),
+  )[0];
+}
+
+export type UpdateResult = { word: Word } | { notFound: true } | { duplicate: true };
+
+/**
+ * Rewrites the attributes of a word on the user's list. Only the word's own fields change: the user's stage and
+ * every timestamp stay as they are. Fails if the word is not on the user's list, or if another word already has
+ * the new foreign text and definition.
+ */
+export function updateWord(db: Db, userId: number, wordId: number, input: WordInput): UpdateResult {
+  return transaction(db, () => {
+    if (!getUserWord(db, userId, wordId)) return { notFound: true };
+    const other = findMeaning(db, input.foreign, input.definition);
+    if (other !== undefined && other !== wordId) return { duplicate: true };
+    db.prepare(
+      `UPDATE word
+          SET native = $native,
+              "foreign" = $foreign,
+              foreign_norm = $foreignNorm,
+              definition = $definition,
+              definition_norm = $definitionNorm,
+              example = $example,
+              pronunciation = $pronunciation,
+              level_id = $levelId,
+              lexical_category = $lexicalCategory,
+              audio = $audio
+        WHERE id = $id`,
+    ).run({
+      native: input.native.trim(),
+      foreign: input.foreign.trim(),
+      foreignNorm: normalizeForeign(input.foreign),
+      definition: blankToNull(input.definition),
+      definitionNorm: definitionKey(input.definition),
+      example: blankToNull(input.example),
+      pronunciation: blankToNull(input.pronunciation),
+      levelId: levelIdFor(db, input.level),
+      lexicalCategory: blankToNull(input.lexicalCategory),
+      audio: blankToNull(input.audio),
+      id: wordId,
+    });
+    return { word: getWord(db, wordId)! };
+  });
+}

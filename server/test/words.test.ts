@@ -220,3 +220,68 @@ test("the word list has the user's own words, most recently added first, with th
   const anonymous = await app.inject({ method: 'GET', url: '/api/words' });
   assert.equal(anonymous.statusCode, 401);
 });
+
+test('a user reads and edits a word on their list without touching its stage or timestamps', async () => {
+  const { app, db } = await testApp();
+  const alice = await registerUser(app, 'alice');
+  const bob = await registerUser(app, 'bob');
+  const { word } = (
+    await app.inject({ method: 'POST', url: '/api/words', headers: alice.headers, payload: { native: 'ház', foreign: 'house' } })
+  ).json();
+  db.prepare("UPDATE user_word SET stage = 4, last_learned = '2026-01-02T03:04:05.000Z' WHERE word_id = ?").run(word.id);
+  const before = db.prepare('SELECT * FROM user_word WHERE word_id = ?').get(word.id);
+  const createdAt = db.prepare('SELECT created_at FROM word WHERE id = ?').get(word.id);
+
+  const read = await app.inject({ method: 'GET', url: `/api/words/${word.id}`, headers: alice.headers });
+  assert.equal(read.statusCode, 200);
+  assert.equal(read.json().foreign, 'house');
+  assert.equal(read.json().stage, 4);
+
+  const edit = await app.inject({
+    method: 'PUT',
+    url: `/api/words/${word.id}`,
+    headers: alice.headers,
+    payload: { native: 'otthon', foreign: 'home', definition: 'where you live', level: 'A1', lexicalCategory: 'noun' },
+  });
+  assert.equal(edit.statusCode, 200);
+  assert.equal(edit.json().foreign, 'home');
+  assert.equal(edit.json().native, 'otthon');
+  assert.equal(edit.json().definition, 'where you live');
+  assert.equal(edit.json().level, 'A1');
+  assert.deepEqual(db.prepare('SELECT * FROM user_word WHERE word_id = ?').get(word.id), before);
+  assert.deepEqual(db.prepare('SELECT created_at FROM word WHERE id = ?').get(word.id), createdAt);
+  assert.equal(count(db, 'SELECT COUNT(*) AS n FROM word WHERE foreign_norm = ?', 'home'), 1);
+
+  const notBobs = { native: 'x', foreign: 'y' };
+  assert.equal((await app.inject({ method: 'GET', url: `/api/words/${word.id}`, headers: bob.headers })).statusCode, 404);
+  assert.equal(
+    (await app.inject({ method: 'PUT', url: `/api/words/${word.id}`, headers: bob.headers, payload: notBobs })).statusCode,
+    404,
+  );
+});
+
+test('editing a word into the meaning of another word is refused', async () => {
+  const { app } = await testApp();
+  const { headers } = await registerUser(app);
+  const add = (foreign: string) =>
+    app.inject({ method: 'POST', url: '/api/words', headers, payload: { native: 'n', foreign, definition: 'd' } });
+  await add('cat');
+  const { word } = (await add('dog')).json();
+
+  const clash = await app.inject({
+    method: 'PUT',
+    url: `/api/words/${word.id}`,
+    headers,
+    payload: { native: 'n', foreign: ' CAT ', definition: 'd' },
+  });
+  assert.equal(clash.statusCode, 409);
+
+  const same = await app.inject({
+    method: 'PUT',
+    url: `/api/words/${word.id}`,
+    headers,
+    payload: { native: 'kutya', foreign: 'Dog', definition: 'd' },
+  });
+  assert.equal(same.statusCode, 200, 'keeping its own meaning is fine');
+  assert.equal(same.json().foreign, 'Dog');
+});

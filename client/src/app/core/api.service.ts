@@ -11,6 +11,7 @@ import type {
   Stats,
   User,
   UserWord,
+  Word,
   WordInput,
 } from './models';
 
@@ -32,6 +33,8 @@ export class ApiService {
   levels = () => firstValueFrom(this.http.get<Level[]>('/api/levels'));
 
   myWords = () => firstValueFrom(this.http.get<UserWord[]>('/api/words'));
+  myWord = (id: number) => firstValueFrom(this.http.get<UserWord>(`/api/words/${id}`));
+  updateWord = (id: number, word: WordInput) => firstValueFrom(this.http.put<Word>(`/api/words/${id}`, word));
   search = (q: string) => this.http.get<SearchHit[]>('/api/words/search', { params: { q } });
   lookup = (q: string) => firstValueFrom(this.http.get<LookupResult>('/api/words/dictionary', { params: { q } }));
   addWord = (word: WordInput) => firstValueFrom(this.http.post<AddResult>('/api/words', word));

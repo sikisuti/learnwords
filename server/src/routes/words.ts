@@ -4,10 +4,12 @@ import type { Db } from '../db/connection.ts';
 import { DictionaryError, DictionaryKeyError, lookupWord, type DictionaryOptions } from '../services/dictionary.ts';
 import {
   addOrLinkWord,
+  getUserWord,
   linkExistingWord,
   listLevels,
   listUserWords,
   searchWords,
+  updateWord,
   type WordInput,
 } from '../services/words.ts';
 
@@ -30,6 +32,8 @@ const wordSchema = {
     },
   },
 } as const;
+
+const idParams = { type: 'object', properties: { id: { type: 'integer', minimum: 1 } } } as const;
 
 const queryString = {
   querystring: { type: 'object', required: ['q'], properties: { q: { type: 'string', maxLength: 200 } } },
@@ -75,11 +79,32 @@ export function wordRoutes(app: FastifyInstance, db: Db, dictionary: DictionaryO
 
   app.post<{ Params: { id: number } }>(
     '/words/:id/learn',
-    { schema: { params: { type: 'object', properties: { id: { type: 'integer', minimum: 1 } } } } },
+    { schema: { params: idParams } },
     async (request, reply) => {
       const result = linkExistingWord(db, request.user!.id, request.params.id);
       if (!result) return reply.code(404).send({ error: 'Word not found' });
       return result;
+    },
+  );
+
+  /** A word on the user's list. */
+  app.get<{ Params: { id: number } }>('/words/:id', { schema: { params: idParams } }, async (request, reply) => {
+    const word = getUserWord(db, request.user!.id, request.params.id);
+    if (!word) return reply.code(404).send({ error: 'Word not found' });
+    return word;
+  });
+
+  /** Rewrites the attributes of a word on the user's list; its stage and timestamps stay. */
+  app.put<{ Params: { id: number }; Body: WordInput }>(
+    '/words/:id',
+    { schema: { ...wordSchema, params: idParams } },
+    async (request, reply) => {
+      const result = updateWord(db, request.user!.id, request.params.id, request.body);
+      if ('notFound' in result) return reply.code(404).send({ error: 'Word not found' });
+      if ('duplicate' in result) {
+        return reply.code(409).send({ error: 'Another word already has this foreign text and definition.' });
+      }
+      return result.word;
     },
   );
 }

@@ -42,6 +42,16 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/add-word-page').then((m) => m.AddWordPage),
       },
       {
+        path: 'words',
+        title: 'My words · Learn Words',
+        loadComponent: () => import('./pages/word-list-page').then((m) => m.WordListPage),
+      },
+      {
+        path: 'words/:id/edit',
+        title: 'Edit a word · Learn Words',
+        loadComponent: () => import('./pages/add-word-page').then((m) => m.AddWordPage),
+      },
+      {
         path: 'settings',
         title: 'Settings · Learn Words',
         loadComponent: () => import('./pages/settings-page').then((m) => m.SettingsPage),
